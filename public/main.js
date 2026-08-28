@@ -19,7 +19,7 @@
   /* ---------- Config binding ---------- */
   document.querySelectorAll('[data-cfg]').forEach(el => { const k = el.getAttribute('data-cfg'); if (C[k] != null) el.textContent = C[k]; });
   document.title = `${C.ticker} — community takeover on ${C.chain}`;
-  $('year').textContent = new Date().getFullYear();
+  if ($('year')) $('year').textContent = new Date().getFullYear();
   const setLink = (id, url) => { const el = $(id); if (!el) return; if (url) el.href = url; else el.style.display = 'none'; };
   setLink('buy-btn', C.links.buy); setLink('nav-buy', C.links.buy); setLink('chart-btn', C.links.chart); setLink('chart-link', C.links.chart);
   $('contract-address').textContent = C.contract;
