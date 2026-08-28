@@ -10,8 +10,8 @@ services:
     healthCheckPath: /api/stats
     autoDeploy: true
     domains:
-      - pokemon-cto.com
-      - www.pokemon-cto.com
+      - pokemoncto.com
+      - www.pokemoncto.com
     envVars:
       - key: NODE_ENV
         value: production

@@ -21,6 +21,9 @@ window.SITE_CONFIG = {
     community: ''
   },
 
+  // Background music (YouTube video id). Streams through the official YouTube player; toggle in the nav.
+  music: { youtubeId: 'YMEblRM4pGc', title: 'Chill & Relaxing Pokémon Music Mix', volume: 35 },
+
   // Fallback numbers, only shown if the live feed is unreachable.
   stats: {
     marketCap: 171000,      // USD

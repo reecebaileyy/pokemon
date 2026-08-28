@@ -27,6 +27,7 @@
     </nav>
     <div class="nav-right">
       <span class="online" title="Trainers in the arena right now"><i></i><span id="online-count">0</span> in arena</span>
+      <button class="music-btn" id="music-btn" type="button" aria-pressed="false" title="Background music"><i class="eq"><b></b><b></b><b></b></i><span>Music off</span></button>
       <a class="btn btn-primary btn-sm" id="nav-buy" href="#" target="_blank" rel="noopener">Buy</a>
     </div>
   </header>
@@ -213,6 +214,8 @@
     <p><span data-cfg="ticker">$POKEMON</span> is a community-run memecoin with no team, no roadmap promises and no intrinsic value. Fan project — not affiliated with Nintendo, Game Freak, Creatures Inc. or The Pokémon Company. Pokémon names and sprites are their property. Crypto is risky; never spend what you can't lose.</p>
     <p class="muted">© <span id="year"></span> · built by holders</p>
   </footer>
+
+  <div id="yt-player" class="yt-hidden" aria-hidden="true"></div>
 
   <script src="config.js"></script>
   <script src="sprites.js"></script>

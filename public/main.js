@@ -229,6 +229,50 @@
   ].filter(([k]) => C.links[k]);
   $('social-grid').innerHTML = socials.map(([k, ic, name, sub]) => `<a class="social" href="${esc(C.links[k])}" target="_blank" rel="noopener"><span class="ic">${ic}</span><div><b>${esc(name)}</b><span>${esc(sub)}</span></div></a>`).join('');
 
+  /* ---------- Background music (YouTube IFrame API, user-toggled) ---------- */
+  (function music() {
+    const btn = $('music-btn');
+    const cfg = C.music || {};
+    if (!cfg.youtubeId) { btn.style.display = 'none'; return; }
+    btn.title = cfg.title ? `Music: ${cfg.title}` : 'Background music';
+    let player = null, ready = false, wanted = false, apiRequested = false;
+    const label = btn.querySelector('span');
+    const setUi = on => { btn.classList.toggle('on', on); btn.setAttribute('aria-pressed', String(on)); label.textContent = on ? 'Music on' : 'Music off'; };
+    const save = () => { try { localStorage.setItem('music', wanted ? '1' : '0'); } catch (e) { /* ignore */ } };
+    function loadApi() {
+      if (apiRequested) return; apiRequested = true;
+      window.onYouTubeIframeAPIReady = () => {
+        player = new YT.Player('yt-player', {
+          width: 2, height: 2, videoId: cfg.youtubeId,
+          playerVars: { autoplay: 0, controls: 0, loop: 1, playlist: cfg.youtubeId, rel: 0, playsinline: 1, disablekb: 1 },
+          events: {
+            onReady: () => { ready = true; player.setVolume(cfg.volume != null ? cfg.volume : 35); if (wanted) player.playVideo(); },
+            onStateChange: e => { if (e.data === YT.PlayerState.PLAYING) setUi(true); else if (e.data === YT.PlayerState.PAUSED || e.data === YT.PlayerState.ENDED) setUi(wanted && e.data === YT.PlayerState.ENDED); },
+            onError: () => { label.textContent = 'Music unavailable'; btn.disabled = true; }
+          }
+        });
+      };
+      const s = document.createElement('script'); s.src = 'https://www.youtube.com/iframe_api'; s.async = true; document.head.appendChild(s);
+    }
+    function toggle() {
+      wanted = !wanted; save(); setUi(wanted);
+      if (!player) { if (wanted) { label.textContent = 'Loading…'; loadApi(); } return; }
+      if (ready) wanted ? player.playVideo() : player.pauseVideo();
+    }
+    btn.addEventListener('click', toggle);
+    // If music was on last visit, resume on the first tap/keypress (browsers block sound before a gesture).
+    let pref = null; try { pref = localStorage.getItem('music'); } catch (e) { /* ignore */ }
+    if (pref === '1') {
+      label.textContent = 'Music: tap to resume';
+      const once = e => {
+        if (btn.contains(e.target)) return; // the button's own click handles it
+        window.removeEventListener('pointerdown', once); window.removeEventListener('keydown', once);
+        if (!wanted) toggle();
+      };
+      window.addEventListener('pointerdown', once); window.addEventListener('keydown', once);
+    }
+  })();
+
   /* ---------- Shared ---------- */
   window.SiteFX = { confetti, setOnline(n) { $('online-count').textContent = n; $('arena-online').textContent = n; } };
 })();
