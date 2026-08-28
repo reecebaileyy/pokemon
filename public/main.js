@@ -195,6 +195,9 @@
     if (m.bonded) proofs.push(['Bonded', `Trading on ${esc(m.dexId || 'PumpSwap')}`]);
     $('proof-grid').innerHTML = proofs.map(([k, v]) => `<div class="proof ok"><i>✓</i><div><b>${esc(k)}</b><span>${v}</span></div></div>`).join('');
     renderEvolution(m.marketCap, true);
+    // Lore: tokens burned so far = launch supply (1B on pump.fun) minus current on-chain supply
+    const burnedEl = $('lore-burned');
+    if (burnedEl && m.supply && m.supply < 1e9) burnedEl.textContent = fmtNum(1e9 - m.supply);
     first = false;
   }
   async function pollMetrics() {
@@ -218,6 +221,19 @@
     $('evo-note').textContent = next ? `${fmtUsd(cur)} now · ${Math.round(partial * 100)}% of the way to ${next.label} (${fmtUsd(next.mcap)})${live ? '' : ' · last known'}` : `${fmtUsd(cur)} — fully evolved.`;
   }
   renderEvolution(C.stats.marketCap, false);
+
+  /* ---------- Lore ---------- */
+  (function lore() {
+    const L = C.lore;
+    const section = $('lore');
+    if (!L || !section) { if (section) section.style.display = 'none'; return; }
+    const img = $('lore-image'), link = $('lore-link');
+    img.src = L.image; img.alt = L.imageAlt || '';
+    if (L.tweetUrl) link.href = L.tweetUrl; else { link.removeAttribute('href'); link.removeAttribute('target'); }
+    $('lore-caption').textContent = L.imageCaption || '';
+    // Chapter copy is site-owned config (not user input), so inline markup like <b id="lore-burned"> is allowed.
+    $('lore-chapters').innerHTML = (L.chapters || []).map((ch, i) => `<li><span class="num">${String(i + 1).padStart(2, '0')}</span><div><h3>${esc(ch.title)}</h3><p>${ch.text}</p></div></li>`).join('');
+  })();
 
   /* ---------- Community ---------- */
   const socials = [

@@ -24,6 +24,28 @@ window.SITE_CONFIG = {
   // Background music (YouTube video id). Streams through the official YouTube player; toggle in the nav.
   music: { youtubeId: 'YMEblRM4pGc', title: 'Chill & Relaxing Pokémon Music Mix', volume: 35 },
 
+  // Lore section. `tweetUrl` makes the screenshot clickable — paste the link to the post.
+  lore: {
+    image: 'assets/lore/pokemon-tweet.jpg',
+    imageAlt: 'Post from the verified @Pokemon account introducing $POKEMON with the contract address',
+    imageCaption: '@Pokemon · 27 Aug 2026 · the only contract address the account has ever posted',
+    tweetUrl: '',
+    chapters: [
+      {
+        title: 'Posted by Pokémon itself',
+        text: 'On 27 August 2026, during the Pokémon 30 celebration, the verified @Pokemon account posted a contract address for the first and only time. "Introducing $POKEMON," it read — and the address it published is the one at the top of this page.'
+      },
+      {
+        title: 'The community took the wheel',
+        text: 'The original deployer walked away. Holders refused to let it die: they reclaimed the socials, built this site and the arena, and run everything themselves. No team, no insider allocation, no dev wallet.'
+      },
+      {
+        title: 'Trading feeds the fire',
+        text: 'The creator wallet is the Solana incinerator. The creator fee from every trade is sent there, where no one can ever claim it — volume doesn\'t enrich a dev, it disappears. Minting is revoked, so supply only moves one way: <b id="lore-burned">4.7M</b> $POKEMON has already been burned.'
+      }
+    ]
+  },
+
   // Fallback numbers, only shown if the live feed is unreachable.
   stats: {
     marketCap: 171000,      // USD
