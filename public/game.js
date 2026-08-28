@@ -160,6 +160,7 @@
         m.players.forEach(addPlayer); m.wilds.forEach(w => wilds.set(w.id, w));
         me = players.get(myId); party = m.party; activeIndex = m.active || 0; coins = m.coins || 0; inventory = m.inventory || {};
         economy = m.economy || economy; season = m.season || season; account = m.account || null;
+        fillEconomy(economy);
         if (account && account.token) storage.set('arena-session', account.token);
         leaderboardList = m.leaderboard; hallList = m.hallOfFame || hallList; renderLeaderboard(); renderHall();
         $('join-overlay').classList.add('hidden');
@@ -249,6 +250,11 @@
   });
   window.addEventListener('keydown', e => { if (e.key === 'Escape') document.querySelectorAll('.modal:not(.hidden)').forEach(m => closeModal(m.id)); });
   function setStatus(id, text, cls, html) { const el = $(id); el.className = 'modal-status ' + (cls || ''); if (html) el.innerHTML = text; else el.textContent = text; }
+
+  /* ---------- How to play ---------- */
+  function fillEconomy(e) { document.querySelectorAll('[data-econ]').forEach(el => { const v = e && e[el.dataset.econ]; if (v != null) el.textContent = typeof v === 'number' ? fmt(v) : v; }); }
+  fillEconomy(C.economy);
+  ['guide-btn', 'guide-btn-join'].forEach(id => { const b = $(id); if (b) b.addEventListener('click', () => openModal('modal-guide')); });
 
   /* ---------- Chat ---------- */
   function setChatEnabled(on) { $('chat-input').disabled = !on; $('chat-send').disabled = !on; }

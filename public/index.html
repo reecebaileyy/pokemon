@@ -119,7 +119,10 @@
     <section class="section container container-wide" id="arena">
       <div class="section-head row">
         <div><h2>Arena</h2><p class="lead">A shared Gen-1 overworld. Catch wild Pokémon in tall grass, battle nearby trainers, evolve your team. <span id="arena-online">0</span> trainers online.</p></div>
-        <div class="controls"><kbd>WASD</kbd> move <kbd>Space</kbd> throw / battle <kbd>Enter</kbd> chat</div>
+        <div class="arena-head-right">
+          <div class="controls"><kbd>WASD</kbd> move <kbd>Space</kbd> throw / battle <kbd>Enter</kbd> chat</div>
+          <button class="btn btn-ghost btn-sm" id="guide-btn" type="button">How to play</button>
+        </div>
       </div>
 
       <div class="arena">
@@ -137,6 +140,7 @@
                   <button class="btn btn-primary" id="join-btn" type="button">Enter</button>
                 </div>
                 <div class="join-error" id="join-error"></div>
+                <p class="join-help"><button class="linkbtn" id="guide-btn-join" type="button">How to play</button> · Guests play free; sign in to save progress and stake <span data-cfg="ticker">$POKEMON</span>.</p>
               </div>
             </div>
 
@@ -235,6 +239,57 @@
     </section>
   </main>
 
+
+  <!-- How to play -->
+  <div class="modal hidden" id="modal-guide" role="dialog" aria-modal="true">
+    <div class="modal-card guide">
+      <button class="modal-close" data-close aria-label="Close">×</button>
+      <h3>How to play</h3>
+      <div class="guide-grid">
+        <section>
+          <h4>1 · Enter</h4>
+          <p>Pick a starter — Bulbasaur, Charmander, Squirtle or Pikachu — a trainer name and a cap colour. You can play as a guest; <b>sign in</b> (Account panel) to keep your party, bag, points and balance.</p>
+        </section>
+        <section>
+          <h4>2 · Move</h4>
+          <p><kbd>WASD</kbd> or arrows on desktop, the D-pad on phones. Everyone on this page is in the same world — you'll see other trainers walking around, and your active Pokémon follows you.</p>
+        </section>
+        <section>
+          <h4>3 · Catch</h4>
+          <p>Wild Pokémon hide in <b>tall grass</b>. Step onto one, then stop the moving marker in the green zone — gold is a perfect throw. You get three throws; <b>Great</b> and <b>Ultra Balls</b> from the shop raise your odds. 1 in 32 spawns is <b>shiny</b> (×3 points); legendaries are announced to everyone. Your party holds six — tap one in the Party panel to make it active.</p>
+        </section>
+        <section>
+          <h4>4 · Battle</h4>
+          <p>Walk next to a trainer and press <kbd>Space</kbd> (or Battle in the Nearby panel). Battles are turn-based, 25 seconds per turn: choose one of four moves or open the <b>Bag</b> — Potions heal, X Attack / X Defend buff you for three turns, and using an item takes your turn. The full type chart applies (water beats fire, ghost ignores normal, and so on). Winner +25 points, loser +5. Forfeiting or disconnecting counts as a loss.</p>
+        </section>
+        <section>
+          <h4>5 · Level up &amp; evolve</h4>
+          <p>Your level is 1 + catches÷2 + wins÷2 and raises HP and damage. Starters evolve at <b>Lv 4</b> and <b>Lv 8</b>, Pikachu at Lv 6, Magikarp at Lv 5, Eevee at Lv 5 into a random Eeveelution.</p>
+        </section>
+        <section>
+          <h4>6 · PokéCoins</h4>
+          <p>Every point you earn is also a PokéCoin. Spend them in <b>Bag &amp; shop</b> on potions, X items and balls. Coins are game currency only — they're never bought or sold for tokens.</p>
+        </section>
+        <section>
+          <h4>7 · Accounts</h4>
+          <p><b>Connect wallet</b> (Phantom / Solflare signs a message — no transaction, no fee) or create a <b>smart wallet</b> — a username + passphrase account that lives inside the arena, for players without a browser wallet. Either way your progress resumes when you come back.</p>
+        </section>
+        <section>
+          <h4>8 · Staking <span data-cfg="ticker">$POKEMON</span></h4>
+          <p>Signed in with a balance? Type a stake next to a nearby trainer's Battle button, or accept theirs. Both stakes are locked when the battle starts; the winner takes the pot minus a <b><span data-econ="feePct">4</span>% fee</b>. Stakes run from <span data-econ="minStake">1,000</span> to <span data-econ="maxStake">5,000,000</span>. Forfeit or disconnect loses your stake. Only stake what you can afford to lose — battles have luck in them.</p>
+        </section>
+        <section>
+          <h4>9 · Season prize pool</h4>
+          <p><span data-econ="prizePoolShare">75</span>% of every fee goes into the pool. Every <span data-econ="seasonHours">24</span> hours it pays the season's top 3 by points — 50 / 30 / 20 % — and points reset. Catching, winning and staking all count.</p>
+        </section>
+        <section>
+          <h4>10 · Deposit &amp; withdraw</h4>
+          <p>Deposit: send <span data-cfg="ticker">$POKEMON</span> to your personal arena address (Account → Deposit) from any wallet or exchange, or let the site build the transfer for your wallet to sign. Credited within about a minute. Withdraw to any Solana address: minimum <span data-econ="minWithdraw">1,000</span>, up to <span data-econ="maxWithdrawPerDay">2,000,000</span> per day.</p>
+        </section>
+      </div>
+      <p class="muted small">Chat: <kbd>Enter</kbd> · Rematch: press <kbd>Space</kbd> near the same trainer · Run from an encounter with B / Run.</p>
+    </div>
+  </div>
 
   <!-- Account modals -->
   <div class="modal hidden" id="modal-auth" role="dialog" aria-modal="true">

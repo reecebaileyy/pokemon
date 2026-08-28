@@ -39,6 +39,10 @@ CSS variables at the top of `public/style.css`.
 
 ## Arena
 
+Player-facing instructions live on the site itself: the **How to play** button in the Arena header (and on the
+starter screen) opens a guide covering moving, catching, battling, items, evolution, accounts, staking, the prize
+pool and deposits/withdrawals, with the live economy limits filled in from `config.js`.
+
 | Action | Desktop | Mobile |
 | --- | --- | --- |
 | Move | WASD / arrows | D-pad |

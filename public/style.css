@@ -359,6 +359,18 @@ i.shiny { color: var(--accent); font-style: normal; font-size: 0.75em; margin-le
 .deposit-wallet .row input { flex: 1; }
 .withdraw-form { display: grid; gap: 0.5rem; }
 
+/* How to play */
+.arena-head-right { display: flex; align-items: center; gap: 0.9rem; flex-wrap: wrap; }
+.modal-card.guide { width: min(720px, 100%); max-height: 88vh; overflow: auto; }
+.guide-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem 1.2rem; }
+.guide-grid section { background: var(--bg); border: 1px solid var(--line); border-radius: var(--r); padding: 0.85rem 0.95rem; }
+.guide-grid h4 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent); margin-bottom: 0.35rem; }
+.guide-grid p { font-size: 0.84rem; color: var(--muted); }
+.guide-grid p b { color: var(--text); font-weight: 600; }
+.join-help { margin-top: 0.6rem; font-size: 0.78rem; color: var(--muted); text-align: center; }
+.linkbtn { background: none; border: 0; padding: 0; color: var(--accent); font-weight: 600; font-size: inherit; text-decoration: underline; text-underline-offset: 2px; }
+@media (max-width: 820px) { .guide-grid { grid-template-columns: 1fr; } .arena-head-right { width: 100%; } }
+
 /* Battle bag + pot, encounter balls */
 .battle-actions { position: relative; }
 .battle-bag { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
