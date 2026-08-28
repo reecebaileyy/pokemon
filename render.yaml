@@ -9,6 +9,9 @@ services:
     startCommand: node server.js
     healthCheckPath: /api/stats
     autoDeploy: true
+    domains:
+      - pokemon-cto.com
+      - www.pokemon-cto.com
     envVars:
       - key: NODE_ENV
         value: production
