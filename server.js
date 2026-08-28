@@ -58,10 +58,11 @@ function loadSiteConfig() {
   } catch (e) { return {}; }
 }
 const SITE = loadSiteConfig();
+const Mod = require('./moderation').create(SITE.moderation || {}); // chat gets ***'d, blocked words can't be names
 const TOKEN_MINT = process.env.TOKEN_MINT || SITE.contract || '';
 const SOLANA_RPC = process.env.SOLANA_RPC || 'https://api.mainnet-beta.solana.com';
 const TOKEN_DECIMALS = Number(process.env.TOKEN_DECIMALS || 6);
-const ECON = Object.assign({ stakes: true, minStake: 1000, maxStake: 5000000, feePct: 4, prizePoolShare: 75, seasonHours: 24, minWithdraw: 1000, maxWithdrawPerDay: 2000000, itemPrices: {}, burnIntervalMs: 60000 }, SITE.economy || {});
+const ECON = Object.assign({ stakes: true, minStake: 1000, maxStake: 5000000, feePct: 4, prizePoolShare: 75, seasonHours: 24, minWithdraw: 1000, maxWithdrawPerDay: 2000000, storeBurnPct: 40, itemPrices: {}, burnIntervalMs: 60000 }, SITE.economy || {});
 const itemPrice = item => Math.max(0, Math.floor(Number((ECON.itemPrices || {})[item.id] != null ? ECON.itemPrices[item.id] : item.price)));
 const UNIT = 10n ** BigInt(TOKEN_DECIMALS);
 const toBase = whole => BigInt(Math.floor(Number(whole))) * UNIT;
@@ -273,7 +274,7 @@ function accountView(p) {
   const dayAgo = now() - 86400000;
   const withdrawnToday = (acc.withdrawn || []).filter(w => w.at > dayAgo).reduce((s, w) => s + w.amount, 0);
   return {
-    id: acc.id, type: acc.type, name: acc.name, walletPubkey: acc.pubkey || null, handle: acc.xUsername ? '@' + acc.xUsername : null, avatar: acc.avatar || null,
+    id: acc.id, type: acc.type, name: acc.name, walletPubkey: acc.pubkey || null, handle: acc.xUsername ? '@' + Mod.censor(acc.xUsername) : null, avatar: acc.avatar || null,
     balance: toWhole(bal(acc)), inventory: acc.inventory || {},
     depositAddress: vault ? vault.depositAddress(acc.depositIndex) : null,
     seasonPoints: ledger.season.points[acc.id] || 0, score: acc.score, withdrawnToday, token: p.sessionToken || null
@@ -287,17 +288,33 @@ function syncAccount(p) {
   if (!acc) return;
   acc.party = p.party; acc.active = p.active; acc.inventory = p.inventory;
   acc.score = p.score; acc.catches = p.catches; acc.wins = p.wins; acc.losses = p.losses; acc.lastSeen = now();
+  if (p.dexSeen) acc.dex = { seen: [...p.dexSeen], caught: [...(p.dexCaught || [])] };
   saveLedger();
+}
+/** One live session per account: the older tab is synced, told, removed from the world and disconnected. */
+function kickSession(other, msg) {
+  syncAccount(other);
+  other.accountId = null; other.sessionToken = null; other.kicked = true;
+  send(other, { t: 'kicked', msg });
+  if (other.encounter) clearTimeout(other.encounter.timer);
+  if (other.pendingCatch) clearTimeout(other.pendingCatch.timer);
+  const b = battles.get(other.battleId);
+  if (b) endBattle(b, b.a.pid === other.id ? b.b.pid : b.a.pid, other.id, 'disconnect');
+  players.delete(other.id);
+  broadcast({ t: 'player_leave', id: other.id, name: other.name });
+  lbDirty = true;
+  setTimeout(() => { try { other.ws.close(4001, 'signed in elsewhere'); } catch (e) { /* ignore */ } }, 150);
 }
 /** Attach an account to a connected player: restore progress (or adopt the guest's progress into a fresh account). */
 function attachAccount(p, acc) {
-  for (const other of players.values()) if (other !== p && other.accountId === acc.id) { other.accountId = null; other.sessionToken = null; send(other, { t: 'account_error', msg: 'Signed in from another tab — this session is now a guest.' }); send(other, { t: 'account', account: null }); }
+  for (const other of [...players.values()]) if (other !== p && other.accountId === acc.id) kickSession(other, 'You signed in from another tab or device, so this session was closed. Press Enter to take it back.');
   p.accountId = acc.id;
   if (acc.party && acc.party.length) {
     p.party = acc.party; p.active = Math.min(acc.active || 0, acc.party.length - 1);
     p.inventory = acc.inventory || {};
     p.score = acc.score; p.catches = acc.catches; p.wins = acc.wins; p.losses = acc.losses;
   } else { syncAccount(p); }
+  loadDex(p, acc); sendDex(p);
   // The account's canonical name never changes; a "#2" suffix only appears for this session if another tab still holds the name.
   p.name = uniqueName(acc.name || p.name, p);
   if (!acc.name) acc.name = p.name;
@@ -332,6 +349,7 @@ function handleAuth(p, msg) {
     const username = String(msg.username || '').trim();
     const password = String(msg.password || '');
     if (!USERNAME_RE.test(username)) return fail('Username: 3–16 letters, numbers or _');
+    if (msg.create && !Mod.isClean(username)) return fail('That username is not allowed — pick something friendlier.');
     if (password.length < 8) return fail('Passphrase must be at least 8 characters.');
     const id = 's:' + username.toLowerCase();
     const existing = ledger.accounts[id];
@@ -659,6 +677,7 @@ const uid = () => crypto.randomBytes(6).toString('base64url');
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 function uniqueName(raw, self) {
   let n = String(raw || '').replace(/[^\w \-]/g, '').trim().slice(0, 14);
+  if (!Mod.isClean(n)) n = ''; // blocked words can't be names
   if (n.length < 2) n = 'Trainer' + Math.floor(Math.random() * 900 + 100);
   const taken = new Set([...players.values()].filter(p => p !== self).map(p => p.name.toLowerCase()));
   let candidate = n, i = 2;
@@ -668,6 +687,31 @@ function uniqueName(raw, self) {
 const sanitizeColor = c => /^#[0-9a-fA-F]{6}$/.test(String(c || '')) ? c.toLowerCase() : '#e3350d';
 const activeMon = p => p.party[p.active] || p.party[0];
 const levelOf = p => 1 + Math.floor(p.catches / 2) + Math.floor(p.wins / 2);
+// ---------- Party HP: damage sticks between battles. Only Potions (bag or in battle) and the Rest move heal. ----------
+const monMaxHp = (p, mon) => { const sp = Dex.BY_DEX[mon.dex]; return 100 + levelOf(p) * 6 + (sp.stage || 0) * 15 + (sp.bulky ? 20 : 0); };
+const monHp = (p, mon) => { const max = monMaxHp(p, mon); return mon.hp == null ? max : Math.max(0, Math.min(max, Math.round(Number(mon.hp) || 0))); };
+const partyView = p => p.party.map(m => ({ dex: m.dex, shiny: !!m.shiny, hp: monHp(p, m), maxHp: monMaxHp(p, m) }));
+const healthyIndices = p => p.party.map((m, i) => (monHp(p, m) > 0 ? i : -1)).filter(i => i >= 0);
+/** Which Pokémon leads a battle: the active one if it can still fight, otherwise the first healthy one (-1 = none). */
+function leadIndex(p) { const ai = p.party[p.active] ? p.active : 0; if (monHp(p, p.party[ai]) > 0) return ai; const h = healthyIndices(p); return h.length ? h[0] : -1; }
+// ---------- Pokédex: every species a trainer has met (seen) or owned (caught); saved with the account ----------
+const dexView = p => ({ seen: [...(p.dexSeen || [])], caught: [...(p.dexCaught || [])], total: Dex.ROSTER.length });
+const sendDex = p => send(p, { t: 'dex_update', dex: dexView(p) });
+function markSeen(p, dex) { if (!p || !p.dexSeen || !Dex.BY_DEX[dex] || p.dexSeen.has(dex)) return; p.dexSeen.add(dex); sendDex(p); }
+function markCaught(p, dex) {
+  if (!p || !p.dexCaught || !Dex.BY_DEX[dex]) return;
+  let changed = false;
+  if (!p.dexSeen.has(dex)) { p.dexSeen.add(dex); changed = true; }
+  if (!p.dexCaught.has(dex)) { p.dexCaught.add(dex); changed = true; }
+  if (changed) sendDex(p);
+}
+/** Merge an account's saved Pokédex into the live player (current party always counts as caught). */
+function loadDex(p, acc) {
+  const saved = acc.dex || {};
+  for (const d of saved.seen || []) p.dexSeen.add(d);
+  for (const d of saved.caught || []) { p.dexSeen.add(d); p.dexCaught.add(d); }
+  for (const m of p.party) { p.dexSeen.add(m.dex); p.dexCaught.add(m.dex); }
+}
 function publicPlayer(p) {
   const mon = activeMon(p);
   return { id: p.id, name: p.name, x: p.x, y: p.y, dir: p.dir, color: p.color, mon: { dex: mon.dex, shiny: !!mon.shiny }, level: levelOf(p), score: p.score, catches: p.catches, wins: p.wins, losses: p.losses, busy: !!(p.battleId || p.encounter), account: !!p.accountId, canStake: !!(p.accountId && ECON.stakes) };
@@ -696,7 +740,8 @@ function checkEvolutions(p) {
     const targets = [].concat(sp.evolvesTo);
     const to = targets[Math.floor(Math.random() * targets.length)];
     const from = mon.dex; mon.dex = to;
-    send(p, { t: 'evolve', index, from, to, shiny: !!mon.shiny, party: p.party });
+    markCaught(p, to);
+    send(p, { t: 'evolve', index, from, to, shiny: !!mon.shiny, party: partyView(p) });
     broadcast({ t: 'announce', kind: 'evolve', text: `${p.name}'s ${Dex.BY_DEX[from].name} evolved into ${Dex.BY_DEX[to].name}!` }, p.id);
   });
 }
@@ -730,6 +775,7 @@ function startEncounter(p, w) {
   wilds.delete(w.id); broadcast({ t: 'wild_remove', id: w.id });
   p.encounter = { wild: w, throwsLeft: ENCOUNTER_THROWS, timer: setTimeout(() => endEncounter(p, 'timeout'), ENCOUNTER_TIMEOUT_MS) };
   send(p, { t: 'encounter', wild: w, throws: ENCOUNTER_THROWS });
+  markSeen(p, w.dex);
   broadcast({ t: 'player_update', player: publicPlayer(p) });
 }
 function endEncounter(p, reason) {
@@ -737,6 +783,19 @@ function endEncounter(p, reason) {
   clearTimeout(p.encounter.timer);
   const w = p.encounter.wild; p.encounter = null;
   send(p, { t: 'encounter_end', reason, dex: w.dex });
+  broadcast({ t: 'player_update', player: publicPlayer(p) });
+}
+const RELEASE_DECISION_MS = 120000;
+/** Party was full when a Pokémon was caught: `index` 0–5 releases that party member (the new catch takes its slot); anything else releases the new catch. */
+function resolvePendingCatch(p, index, auto) {
+  const pc = p.pendingCatch; if (!pc) return;
+  clearTimeout(pc.timer); p.pendingCatch = null;
+  index = Number(index);
+  const keepNew = Number.isInteger(index) && index >= 0 && index < p.party.length;
+  const released = keepNew ? p.party[index] : pc.mon;
+  if (keepNew) { p.party[index] = pc.mon; markCaught(p, pc.mon.dex); }
+  syncAccount(p);
+  send(p, { t: 'release_result', auto: !!auto, released: { dex: released.dex, shiny: !!released.shiny }, kept: keepNew ? { dex: pc.mon.dex, shiny: !!pc.mon.shiny, index } : null, party: partyView(p), active: p.active });
   broadcast({ t: 'player_update', player: publicPlayer(p) });
 }
 function handleThrow(p, quality, ball) {
@@ -753,11 +812,18 @@ function handleThrow(p, quality, ball) {
   if (success) {
     const isNew = !p.party.some(m => m.dex === sp.dex);
     const mon = { dex: sp.dex, shiny: !!enc.wild.shiny };
-    if (p.party.length < 6) p.party.push(mon); else p.party[5] = mon;
+    let partyFull = false;
+    if (p.party.length < 6) p.party.push(mon);
+    else { // full party: the trainer decides what to release (the new catch included) — nothing is thrown away automatically
+      partyFull = true;
+      if (p.pendingCatch) clearTimeout(p.pendingCatch.timer);
+      p.pendingCatch = { mon, timer: setTimeout(() => resolvePendingCatch(p, 6, true), RELEASE_DECISION_MS) };
+    }
     const points = sp.points * (mon.shiny ? 3 : 1) + (isNew ? 5 : 0);
     award(p, points); p.catches += 1;
+    markCaught(p, sp.dex);
     clearTimeout(enc.timer); p.encounter = null;
-    send(p, { t: 'catch_result', success: true, mon, points, isNew, quality, ball: ballUsed, party: p.party, inventory: p.inventory });
+    send(p, { t: 'catch_result', success: true, mon, points, isNew, quality, ball: ballUsed, party: partyView(p), inventory: p.inventory, partyFull });
     checkEvolutions(p); syncAccount(p); recordHall(p);
     broadcast({ t: 'player_update', player: publicPlayer(p) });
     if (sp.rarity === 'legendary') broadcast({ t: 'announce', kind: 'legendary', text: `${p.name} caught a legendary ${sp.name}!` });
@@ -767,7 +833,7 @@ function handleThrow(p, quality, ball) {
   else send(p, { t: 'catch_result', success: false, dex: sp.dex, throwsLeft: enc.throwsLeft, fled: false, ball: ballUsed, inventory: p.inventory });
 }
 
-// ---------- PokéStore (paid in $POKEMON; everything spent is burned on-chain) ----------
+// ---------- PokéStore (paid in $POKEMON; storeBurnPct% burned on-chain, the rest feeds the season prize pool) ----------
 function handleBuy(p, msg) {
   const item = Dex.ITEMS[msg.item];
   const qty = clamp(Math.floor(Number(msg.qty) || 1), 1, 10);
@@ -778,11 +844,15 @@ function handleBuy(p, msg) {
   const cost = toBase(itemPrice(item) * qty);
   if (bal(acc) < cost) return send(p, { t: 'shop_result', ok: false, error: `Not enough $POKEMON (${fmt(toWhole(cost))} needed).` });
   debit(acc, cost);
-  ledger.pendingBurn = (BigInt(ledger.pendingBurn || '0') + cost).toString();
+  // Split every purchase: storeBurnPct% is queued for an on-chain burn, the rest goes straight into the season prize pool.
+  const burnPart = cost * BigInt(clamp(Math.round(ECON.storeBurnPct), 0, 100)) / 100n, poolPart = cost - burnPart;
+  ledger.pendingBurn = (BigInt(ledger.pendingBurn || '0') + burnPart).toString();
+  ledger.pool = (BigInt(ledger.pool || '0') + poolPart).toString();
   p.inventory[item.id] = (p.inventory[item.id] || 0) + qty;
   syncAccount(p); saveLedger(true);
-  send(p, { t: 'shop_result', ok: true, item: item.id, qty, cost: toWhole(cost), inventory: p.inventory, pendingBurn: toWhole(ledger.pendingBurn) });
+  send(p, { t: 'shop_result', ok: true, item: item.id, qty, cost: toWhole(cost), inventory: p.inventory, burned: toWhole(burnPart), toPool: toWhole(poolPart), pendingBurn: toWhole(ledger.pendingBurn), pool: toWhole(ledger.pool) });
   sendAccount(p);
+  broadcastSeason();
   scheduleBurn();
 }
 
@@ -825,16 +895,29 @@ function burnsView() {
 
 // ---------- Battles (with optional $POKEMON stakes) ----------
 const distance = (a, b) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
+/** Put party slot `idx` on the field for this side. Buffs and sleep do not carry across switches. */
+function loadMon(side, p, idx) {
+  const mon = p.party[idx]; const sp = Dex.BY_DEX[mon.dex];
+  side.idx = idx; side.dex = sp.dex; side.shiny = !!mon.shiny; side.stage = sp.stage || 0;
+  side.maxHp = monMaxHp(p, mon); side.hp = monHp(p, mon);
+  side.atk = null; side.def = null; side.sleep = 0;
+}
 function makeSide(p) {
-  const mon = activeMon(p); const sp = Dex.BY_DEX[mon.dex]; const level = levelOf(p);
-  const maxHp = 100 + level * 6 + sp.stage * 15 + (sp.bulky ? 20 : 0);
-  return { pid: p.id, name: p.name, dex: sp.dex, shiny: !!mon.shiny, level, stage: sp.stage, hp: maxHp, maxHp, action: null, color: p.color, atk: null, def: null };
+  const side = { pid: p.id, name: p.name, color: p.color, level: levelOf(p), action: null, skip: false };
+  loadMon(side, p, leadIndex(p));
+  return side;
+}
+/** Persist the field Pokémon's HP into the trainer's party (called every turn, so a disconnect keeps the damage). */
+function writeBack(side) { const p = players.get(side.pid); if (p && p.party[side.idx]) p.party[side.idx].hp = side.hp; }
+const remaining = side => { const p = players.get(side.pid); return p ? healthyIndices(p).length : 0; };
+function sideView(s) {
+  const p = players.get(s.pid);
+  return { pid: s.pid, name: s.name, dex: s.dex, shiny: s.shiny, level: s.level, hp: s.hp, maxHp: s.maxHp, color: s.color, types: Dex.BY_DEX[s.dex].types, sleep: s.sleep || 0, atk: s.atk, def: s.def, remaining: remaining(s), partySize: p ? p.party.length : 1 };
 }
 function battleView(b, forPid) {
   const me = b.a.pid === forPid ? b.a : b.b, foe = b.a.pid === forPid ? b.b : b.a;
-  const strip = s => ({ pid: s.pid, name: s.name, dex: s.dex, shiny: s.shiny, level: s.level, hp: s.hp, maxHp: s.maxHp, color: s.color, types: Dex.BY_DEX[s.dex].types });
   const mePlayer = players.get(me.pid);
-  return { id: b.id, turn: b.turn, me: strip(me), foe: strip(foe), moves: Dex.BY_DEX[me.dex].moves, turnEndsAt: b.turnEndsAt, stake: toWhole(b.stake), pot: toWhole(b.pot), inventory: mePlayer ? mePlayer.inventory : {} };
+  return { id: b.id, turn: b.turn, me: Object.assign(sideView(me), { idx: me.idx, party: mePlayer ? partyView(mePlayer) : [] }), foe: sideView(foe), moves: Dex.BY_DEX[me.dex].moves, turnEndsAt: b.turnEndsAt, stake: toWhole(b.stake), pot: toWhole(b.pot), inventory: mePlayer ? mePlayer.inventory : {} };
 }
 function startBattle(p1, p2, stakeBase) {
   if (stakeBase > 0n) {
@@ -844,6 +927,7 @@ function startBattle(p1, p2, stakeBase) {
     sendAccount(p1); sendAccount(p2);
   }
   const b = { id: uid(), a: makeSide(p1), b: makeSide(p2), turn: 1, timer: null, turnEndsAt: now() + BATTLE_TURN_MS, stake: stakeBase, pot: stakeBase * 2n, aAcc: p1.accountId, bAcc: p2.accountId };
+  markSeen(p1, b.b.dex); markSeen(p2, b.a.dex);
   battles.set(b.id, b);
   p1.battleId = b.id; p2.battleId = b.id; p1.pendingChallenge = null; p2.pendingChallenge = null;
   send(p1, { t: 'battle_start', battle: battleView(b, p1.id) });
@@ -868,6 +952,12 @@ function chooseAction(p, action) {
     p.inventory[item.id] -= 1; syncAccount(p);
     side.action = { item: item.id };
     send(p, { t: 'wallet_state', inventory: p.inventory });
+  } else if (action.switch != null) {
+    const idx = Number(action.switch);
+    if (!Number.isInteger(idx) || idx < 0 || idx >= p.party.length) return;
+    if (idx === side.idx) return send(p, { t: 'error', msg: 'That Pokémon is already out.' });
+    if (monHp(p, p.party[idx]) <= 0) return send(p, { t: 'error', msg: `${Dex.BY_DEX[p.party[idx].dex].name} has fainted and can't battle.` });
+    side.action = { switch: idx };
   } else {
     const index = Number(action.move);
     if (!Number.isInteger(index) || index < 0 || index > 3) return;
@@ -880,14 +970,28 @@ function chooseAction(p, action) {
 function resolveTurn(b) {
   clearTimeout(b.timer);
   const spA = Dex.BY_DEX[b.a.dex], spB = Dex.BY_DEX[b.b.dex];
-  const prio = (side, sp) => side.action.item ? 1000 : ((sp.moves[side.action.move] || sp.moves[0]).priority || 0) * 100 + sp.speed + Math.random() * 2;
+  // Switches go first (like the real games), then items, then moves by priority/speed.
+  const prio = (side, sp) => side.action.switch != null ? 2000 : side.action.item ? 1000 : ((sp.moves[side.action.move] || sp.moves[0]).priority || 0) * 100 + sp.speed + Math.random() * 2;
   const order = prio(b.a, spA) >= prio(b.b, spB) ? [b.a, b.b] : [b.b, b.a];
   const events = [];
   let winner = null;
+  const switchEvent = (side, from, auto) => ({ kind: 'switch', by: side.pid, from, idx: side.idx, dex: side.dex, shiny: side.shiny, hp: side.hp, maxHp: side.maxHp, types: Dex.BY_DEX[side.dex].types, remaining: remaining(side), auto: !!auto });
   for (const attacker of order) {
     const defender = attacker === b.a ? b.b : b.a;
     if (attacker.hp <= 0) continue;
+    if (attacker.skip) { attacker.skip = false; continue; } // was sent out this turn after a faint — it doesn't also attack
     const sp = Dex.BY_DEX[attacker.dex], defSp = Dex.BY_DEX[defender.dex];
+    if (attacker.action.switch != null) {
+      const p = players.get(attacker.pid);
+      if (p && p.party[attacker.action.switch] && monHp(p, p.party[attacker.action.switch]) > 0) {
+        writeBack(attacker);
+        const from = attacker.dex;
+        loadMon(attacker, p, attacker.action.switch);
+        events.push(switchEvent(attacker, from, false));
+        markSeen(players.get(defender.pid), attacker.dex);
+      }
+      continue;
+    }
     if (attacker.action.item) {
       const item = Dex.ITEMS[attacker.action.item];
       if (item.kind === 'heal') { const before = attacker.hp; attacker.hp = Math.min(attacker.maxHp, attacker.hp + item.amount); events.push({ kind: 'item', by: attacker.pid, item: item.id, name: item.name, amount: attacker.hp - before }); }
@@ -895,8 +999,15 @@ function resolveTurn(b) {
       else if (item.kind === 'guard') { attacker.def = { mult: item.mult, turns: item.turns }; events.push({ kind: 'item', by: attacker.pid, item: item.id, name: item.name, effect: 'defense up' }); }
       continue;
     }
+    if (attacker.sleep > 0) { attacker.sleep -= 1; events.push({ kind: 'sleep', by: attacker.pid, woke: attacker.sleep === 0 }); continue; }
     const mv = sp.moves[attacker.action.move] || sp.moves[0];
-    if (mv.heal) { const before = attacker.hp; attacker.hp = Math.min(attacker.maxHp, attacker.hp + mv.heal + attacker.level * 2); events.push({ kind: 'heal', by: attacker.pid, move: mv.name, type: mv.type, amount: attacker.hp - before }); continue; }
+    if (mv.heal) {
+      const before = attacker.hp;
+      if (mv.name === 'Rest') { attacker.hp = attacker.maxHp; attacker.sleep = 2; } // full heal, then asleep for two turns
+      else attacker.hp = Math.min(attacker.maxHp, attacker.hp + mv.heal + attacker.level * 2);
+      events.push({ kind: 'heal', by: attacker.pid, move: mv.name, type: mv.type, amount: attacker.hp - before, rest: mv.name === 'Rest' });
+      continue;
+    }
     if (Math.random() * 100 >= mv.acc) { events.push({ kind: 'miss', by: attacker.pid, move: mv.name, type: mv.type }); continue; }
     const eff = Dex.effectiveness(mv.type, defSp.types);
     if (eff === 0) { events.push({ kind: 'immune', by: attacker.pid, target: defender.pid, move: mv.name, type: mv.type }); continue; }
@@ -908,12 +1019,25 @@ function resolveTurn(b) {
     const dmg = Math.max(1, Math.round(mv.power * (1 + attacker.level * 0.06 + attacker.stage * 0.15) * eff * stab * crit * roll * atkMult * defMult));
     defender.hp = Math.max(0, defender.hp - dmg);
     events.push({ kind: 'hit', by: attacker.pid, target: defender.pid, move: mv.name, type: mv.type, dmg, eff, crit: crit > 1, boosted: atkMult > 1, guarded: defMult < 1 });
-    if (defender.hp <= 0) { winner = attacker; break; }
+    if (defender.hp <= 0) {
+      // Fainted: the next healthy Pokémon in the party steps in; the trainer only loses when nobody is left.
+      writeBack(defender);
+      const dp = players.get(defender.pid);
+      const next = dp ? healthyIndices(dp)[0] : undefined;
+      events.push({ kind: 'faint', target: defender.pid, dex: defender.dex, remaining: dp ? healthyIndices(dp).length : 0 });
+      if (next == null) { winner = attacker; break; }
+      const from = defender.dex;
+      loadMon(defender, dp, next);
+      defender.skip = true;
+      events.push(switchEvent(defender, from, true));
+      markSeen(players.get(attacker.pid), defender.dex);
+    }
   }
-  for (const side of [b.a, b.b]) { if (side.atk && side.atk.turns > 0) side.atk.turns--; if (side.def && side.def.turns > 0) side.def.turns--; }
+  for (const side of [b.a, b.b]) { side.skip = false; if (side.atk && side.atk.turns > 0) side.atk.turns--; if (side.def && side.def.turns > 0) side.def.turns--; }
   b.a.action = null; b.b.action = null; b.turn += 1;
+  writeBack(b.a); writeBack(b.b);
   const pA = players.get(b.a.pid), pB = players.get(b.b.pid);
-  const payload = side => { const other = side === b.a ? b.b : b.a; return { t: 'battle_turn', events, me: { hp: side.hp, maxHp: side.maxHp, atk: side.atk, def: side.def }, foe: { hp: other.hp, maxHp: other.maxHp, atk: other.atk, def: other.def }, turn: b.turn, turnEndsAt: now() + BATTLE_TURN_MS }; };
+  const payload = side => { const other = side === b.a ? b.b : b.a; const p = players.get(side.pid); return { t: 'battle_turn', events, me: Object.assign(sideView(side), { idx: side.idx, party: p ? partyView(p) : [] }), foe: sideView(other), turn: b.turn, turnEndsAt: now() + BATTLE_TURN_MS }; };
   send(pA, payload(b.a)); send(pB, payload(b.b));
   if (winner) endBattle(b, winner.pid, (winner === b.a ? b.b : b.a).pid, 'ko'); else armTurnTimer(b);
 }
@@ -934,8 +1058,11 @@ function endBattle(b, winnerId, loserId, reason) {
     else ledger.treasury = (BigInt(ledger.treasury) + winnings).toString();
     saveLedger(true);
   }
+  // Damage sticks: write the field Pokémon back into each party and keep whoever was out as the active one (if it can still stand).
+  for (const side of [b.a, b.b]) { writeBack(side); const p = players.get(side.pid); if (p && side.hp > 0 && p.party[side.idx]) p.active = side.idx; }
   if (w) { award(w, WIN_POINTS); w.wins += 1; w.battleId = null; }
   if (l) { award(l, LOSS_POINTS); l.losses += 1; l.battleId = null; }
+  for (const p of [w, l]) if (p) send(p, { t: 'party_update', party: partyView(p), active: p.active });
   const msg = { t: 'battle_end', winner: winnerId, loser: loserId, reason, winnerName: w ? w.name : b.a.pid === winnerId ? b.a.name : b.b.name, loserName: l ? l.name : b.a.pid === loserId ? b.a.name : b.b.name, winPoints: WIN_POINTS, lossPoints: LOSS_POINTS, stake: toWhole(b.stake), payout, fee: toWhole(fee) };
   send(w, msg); send(l, msg);
   if (w) { checkEvolutions(w); syncAccount(w); recordHall(w); sendAccount(w); broadcast({ t: 'player_update', player: publicPlayer(w) }); }
@@ -960,6 +1087,10 @@ function handleChallenge(p, targetId, stake) {
   if (p.battleId || p.encounter) return send(p, { t: 'error', msg: 'You are busy.' });
   if (target.battleId || target.encounter) return send(p, { t: 'error', msg: `${target.name} is busy right now.` });
   if (distance(p, target) > CHALLENGE_RANGE) return send(p, { t: 'error', msg: 'Get closer to challenge them.' });
+  if (!healthyIndices(p).length) return send(p, { t: 'error', msg: 'All your Pokémon have fainted — heal one with a Potion first.' });
+  if (!healthyIndices(target).length) return send(p, { t: 'error', msg: `${target.name}'s Pokémon have all fainted.` });
+  if (p.pendingCatch) return send(p, { t: 'error', msg: 'Choose which Pokémon to release first.' });
+  if (target.pendingCatch) return send(p, { t: 'error', msg: `${target.name} is sorting their party right now.` });
   const s = parseStake(p, target, stake);
   if (s.error) return send(p, { t: 'error', msg: s.error });
   if (target.pendingChallenge && target.pendingChallenge.from === p.id) return;
@@ -977,6 +1108,9 @@ function handleAccept(p, fromId) {
   if (pc.expires < now()) return send(p, { t: 'error', msg: 'Challenge expired.' });
   if (from.battleId || from.encounter || p.battleId || p.encounter) return send(p, { t: 'error', msg: 'Someone is busy.' });
   if (distance(p, from) > CHALLENGE_RANGE + 1) return send(p, { t: 'error', msg: 'Too far apart now.' });
+  if (!healthyIndices(p).length) return send(p, { t: 'error', msg: 'All your Pokémon have fainted — heal one with a Potion first.' });
+  if (!healthyIndices(from).length) { send(p, { t: 'error', msg: `${from.name}'s Pokémon have all fainted.` }); return send(from, { t: 'error', msg: 'All your Pokémon have fainted — heal one with a Potion first.' }); }
+  if (p.pendingCatch || from.pendingCatch) return send(p, { t: 'error', msg: p.pendingCatch ? 'Choose which Pokémon to release first.' : `${from.name} is sorting their party right now.` });
   if (pc.stake > 0n) {
     if (!p.accountId || bal(ledger.accounts[p.accountId]) < pc.stake) return send(p, { t: 'error', msg: `You need ${fmt(toWhole(pc.stake))} $POKEMON to accept this stake.` });
     if (!from.accountId || bal(ledger.accounts[from.accountId]) < pc.stake) { send(p, { t: 'error', msg: 'Challenger can no longer cover the stake.' }); return send(from, { t: 'error', msg: 'Your balance dropped below the stake.' }); }
@@ -997,12 +1131,12 @@ function handleMove(p, dir) {
   if (walkable(nx, ny)) { p.x = nx; p.y = ny; }
   broadcast({ t: 'move', id: p.id, x: p.x, y: p.y, dir: p.dir });
   const w = wildAt(p.x, p.y);
-  if (w) startEncounter(p, w);
+  if (w && !p.pendingCatch) startEncounter(p, w);
 }
 
 // ---------- WebSocket ----------
 const wss = new WebSocketServer({ server, maxPayload: 4096 });
-const economyView = () => ({ stakes: !!(ECON.stakes && vault), minStake: ECON.minStake, maxStake: ECON.maxStake, feePct: ECON.feePct, prizePoolShare: ECON.prizePoolShare, seasonHours: ECON.seasonHours, minWithdraw: ECON.minWithdraw, maxWithdrawPerDay: ECON.maxWithdrawPerDay, walletAuth: !!vault, xLogin: X_ENABLED, xFake: X_FAKE, mint: TOKEN_MINT, decimals: TOKEN_DECIMALS, tokenProgram: vault ? vault.tokenProgram : null, devFaucet: !IS_PROD && process.env.ARENA_DEV_FAUCET === '1', prices: Object.fromEntries(Dex.ITEM_LIST.map(it => [it.id, itemPrice(it)])) });
+const economyView = () => ({ stakes: !!(ECON.stakes && vault), minStake: ECON.minStake, maxStake: ECON.maxStake, feePct: ECON.feePct, prizePoolShare: ECON.prizePoolShare, seasonHours: ECON.seasonHours, minWithdraw: ECON.minWithdraw, maxWithdrawPerDay: ECON.maxWithdrawPerDay, walletAuth: !!vault, xLogin: X_ENABLED, xFake: X_FAKE, storeBurnPct: ECON.storeBurnPct, storePoolPct: 100 - ECON.storeBurnPct, mint: TOKEN_MINT, decimals: TOKEN_DECIMALS, tokenProgram: vault ? vault.tokenProgram : null, devFaucet: !IS_PROD && process.env.ARENA_DEV_FAUCET === '1', prices: Object.fromEntries(Dex.ITEM_LIST.map(it => [it.id, itemPrice(it)])) });
 
 wss.on('connection', (ws) => {
   ws.isAlive = true;
@@ -1023,20 +1157,23 @@ wss.on('connection', (ws) => {
         id: uid(), ws, name: uniqueName(msg.name), color: sanitizeColor(msg.color),
         x: SPAWN.x + Math.floor(Math.random() * 6) - 3, y: SPAWN.y + Math.floor(Math.random() * 4) - 2, dir: 'down',
         party: [{ dex: starterDex, shiny: Math.random() < SHINY_CHANCE }], active: 0, inventory: {},
-        score: 0, catches: 0, wins: 0, losses: 0, lastMove: 0, lastChat: 0, battleId: null, encounter: null, pendingChallenge: null, accountId: null, sessionToken: null, authNonce: null
+        score: 0, catches: 0, wins: 0, losses: 0, lastMove: 0, lastChat: 0, battleId: null, encounter: null, pendingChallenge: null, accountId: null, sessionToken: null, authNonce: null,
+        dexSeen: new Set([starterDex]), dexCaught: new Set([starterDex])
       };
       if (!walkable(player.x, player.y)) { player.x = SPAWN.x; player.y = SPAWN.y; }
+      if (msg.name && !Mod.isClean(String(msg.name))) send(player, { t: 'error', msg: `That name contains blocked words, so you're ${player.name} for now.` });
       players.set(player.id, player);
       if (msg.token && ledger.sessions[msg.token] && ledger.sessions[msg.token].expires > now() && ledger.accounts[ledger.sessions[msg.token].id]) {
         const acc = ledger.accounts[ledger.sessions[msg.token].id];
-        for (const other of players.values()) if (other !== player && other.accountId === acc.id) { other.accountId = null; other.sessionToken = null; send(other, { t: 'account', account: null }); }
+        for (const other of [...players.values()]) if (other !== player && other.accountId === acc.id) kickSession(other, 'You opened the arena in another tab or device, so this session was closed. Press Enter to take it back.');
         player.accountId = acc.id;
         if (acc.party && acc.party.length) { player.party = acc.party; player.active = Math.min(acc.active || 0, acc.party.length - 1); player.inventory = acc.inventory || {}; player.score = acc.score; player.catches = acc.catches; player.wins = acc.wins; player.losses = acc.losses; }
         player.name = uniqueName(acc.name || player.name, player); if (!acc.name) acc.name = player.name;
         player.sessionToken = msg.token; watchDeposits(acc);
+        player.dexSeen = new Set(); player.dexCaught = new Set(); loadDex(player, acc); // a resume restores the saved dex; the placeholder starter doesn't count
       }
       sendWs(ws, {
-        t: 'welcome', id: player.id, you: publicPlayer(player), party: player.party, active: player.active, inventory: player.inventory,
+        t: 'welcome', id: player.id, you: publicPlayer(player), party: partyView(player), active: player.active, inventory: player.inventory, dex: dexView(player),
         map: { w: MAP_W, h: MAP_H, tiles: map, seed: MAP_SEED }, players: [...players.values()].map(publicPlayer), wilds: [...wilds.values()],
         leaderboard: leaderboard(10), hallOfFame: hallOfFame(10), economy: economyView(), season: seasonView(player), account: player.accountId ? accountView(player) : null
       });
@@ -1056,16 +1193,38 @@ wss.on('connection', (ws) => {
         const text = String(msg.text || '').replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 120);
         if (!text) return;
         player.lastChat = t;
-        broadcast({ t: 'chat', id: player.id, name: player.name, text, color: player.color });
+        broadcast({ t: 'chat', id: player.id, name: player.name, text: Mod.censor(text), color: player.color });
         break;
       }
       case 'throw': handleThrow(player, msg.quality, msg.ball); break;
+      case 'release': if (player.pendingCatch) resolvePendingCatch(player, msg.index, false); else send(player, { t: 'error', msg: 'Nothing to release right now.' }); break;
+      case 'dev_fill_party': {
+        if (IS_PROD || process.env.ARENA_DEV_FAUCET !== '1') return;
+        while (player.party.length < 6) player.party.push({ dex: Dex.WILD[player.party.length % Dex.WILD.length].dex, shiny: false });
+        syncAccount(player); send(player, { t: 'party_update', party: partyView(player), active: player.active });
+        break;
+      }
       case 'run': endEncounter(player, 'ran'); break;
       case 'challenge': handleChallenge(player, String(msg.id || ''), msg.stake); break;
       case 'accept': handleAccept(player, String(msg.id || '')); break;
       case 'decline': handleDecline(player, String(msg.id || '')); break;
       case 'battle_move': chooseAction(player, { move: msg.index }); break;
       case 'battle_item': chooseAction(player, { item: String(msg.item || '') }); break;
+      case 'battle_switch': chooseAction(player, { switch: msg.index }); break;
+      case 'use_item': {
+        // Potions outside battle: the only way (besides Rest) to get HP back.
+        if (player.battleId || player.encounter) return send(player, { t: 'error', msg: 'Finish what you are doing first.' });
+        const item = Dex.ITEMS[String(msg.item || '')];
+        if (!item || item.kind !== 'heal' || (player.inventory[item.id] || 0) <= 0) return send(player, { t: 'error', msg: "You don't have that item." });
+        const idx = Number.isInteger(Number(msg.index)) && player.party[Number(msg.index)] ? Number(msg.index) : (player.party[player.active] ? player.active : 0);
+        const mon = player.party[idx]; const max = monMaxHp(player, mon), cur = monHp(player, mon);
+        if (cur >= max) return send(player, { t: 'error', msg: `${Dex.BY_DEX[mon.dex].name} is already at full HP.` });
+        player.inventory[item.id] -= 1;
+        mon.hp = Math.min(max, cur + item.amount);
+        syncAccount(player);
+        send(player, { t: 'item_used', item: item.id, name: item.name, index: idx, dex: mon.dex, amount: mon.hp - cur, party: partyView(player), inventory: player.inventory });
+        break;
+      }
       case 'forfeit': { const b = battles.get(player.battleId); if (b) endBattle(b, b.a.pid === player.id ? b.b.pid : b.a.pid, player.id, 'forfeit'); break; }
       case 'set_active': {
         if (player.battleId || player.encounter) return;
@@ -1093,8 +1252,10 @@ wss.on('connection', (ws) => {
   ws.on('close', () => {
     if (!player) return;
     const p = player; player = null;
+    if (p.kicked) return; // already synced and removed from the world by kickSession
     players.delete(p.id);
     if (p.encounter) clearTimeout(p.encounter.timer);
+    if (p.pendingCatch) clearTimeout(p.pendingCatch.timer);
     const b = battles.get(p.battleId);
     if (b) endBattle(b, b.a.pid === p.id ? b.b.pid : b.a.pid, p.id, 'disconnect');
     syncAccount(p); recordHall(p);

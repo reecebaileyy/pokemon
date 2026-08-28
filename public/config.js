@@ -47,14 +47,17 @@ window.SITE_CONFIG = {
       },
       {
         title: 'Trading feeds the fire',
-        text: 'The creator wallet is the Solana incinerator. The creator fee from every trade is sent there, where no one can ever claim it — volume doesn\'t enrich a dev, it disappears. Minting is revoked, so supply only moves one way: <b id="lore-burned">4.7M</b> $POKEMON has already been burned — and every token spent in the arena\'s PokéStore is burned too.'
+        text: 'The creator wallet is the Solana incinerator. The creator fee from every trade is sent there, where no one can ever claim it — volume doesn\'t enrich a dev, it disappears. Minting is revoked, so supply only moves one way: <b id="lore-burned">4.7M</b> $POKEMON has already been burned — and 40% of every token spent in the arena\'s PokéStore is burned too, while the other 60% feeds the season prize pool.'
       }
     ]
   },
 
   // Arena economy: staking $POKEMON on battles, the season prize pool, deposits and withdrawals.
   // Amounts are in whole tokens. Server-side settings; the browser only uses them for display.
+  // Chat + name moderation (see moderation.js): add words to block, or allow ones the community is fine with.
+  moderation: { extra: [], extraStrong: [], allow: [] },
   economy: {
+    storeBurnPct: 40,          // share of every PokéStore purchase that is burned on-chain; the rest (60%) goes straight into the season prize pool
     stakes: true,             // allow staked battles
     minStake: 1000,
     maxStake: 5000000,
@@ -63,7 +66,7 @@ window.SITE_CONFIG = {
     seasonHours: 24,          // prize pool pays the season's top 3 (50 / 30 / 20 %) every N hours
     minWithdraw: 1000,
     maxWithdrawPerDay: 2000000,
-    // PokéStore prices in whole $POKEMON (defaults live in pokedex.js). Every purchase is burned on-chain from the vault.
+    // PokéStore prices in whole $POKEMON (defaults live in pokedex.js). Purchases are split: storeBurnPct% burned from the vault, the rest to the prize pool.
     itemPrices: { potion: 500, superpotion: 1200, hyperpotion: 2800, fullrestore: 5000, xattack: 1800, xdefend: 1800, greatball: 1000, ultraball: 2500 }
   },
 

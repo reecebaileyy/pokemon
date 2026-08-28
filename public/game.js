@@ -38,13 +38,14 @@
   const wilds = new Map();
   const bubbles = new Map();
   let party = [], activeIndex = 0, me = null, inventory = {};
+  let dexState = { seen: new Set(), caught: new Set(), total: D.ROSTER.length };
   let encounter = null, battle = null, pendingChallenge = null;
   let leaderboardList = [], hallList = [];
   let economy = { stakes: false }, account = null, season = null, walletProvider = null, walletPubkey = null;
   let lastFrame = performance.now(), lastMoveSent = 0, nearbyTick = 0, lastNearbyIds = '';
   const keys = new Set();
   let heldDir = null;
-  let reconnectDelay = 1000;
+  let reconnectDelay = 1000, kickedMsg = null;
   const storage = { get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* ignore */ } }, del: k => { try { localStorage.removeItem(k); } catch (e) { /* ignore */ } } };
 
   /* ---------- Assets ---------- */
@@ -128,9 +129,9 @@
       if (joined) {
         joined = false; myId = null; me = null; battle = null; encounter = null; account = null;
         players.clear(); wilds.clear();
-        hideAllOverlays();
+        hideAllOverlays(); $('release-overlay').classList.add('hidden');
         $('join-overlay').classList.remove('hidden');
-        $('join-error').textContent = 'Disconnected — rejoin when ready.';
+        $('join-error').textContent = kickedMsg || 'Disconnected — rejoin when ready.'; kickedMsg = null;
         setChatEnabled(false); renderAccount();
       }
       scheduleReconnect();
@@ -159,6 +160,7 @@
         players.clear(); wilds.clear();
         m.players.forEach(addPlayer); m.wilds.forEach(w => wilds.set(w.id, w));
         me = players.get(myId); party = m.party; activeIndex = m.active || 0; inventory = m.inventory || {};
+        setDex(m.dex);
         economy = m.economy || economy; season = m.season || season; account = m.account || null;
         fillEconomy(economy);
         $('auth-x').classList.toggle('hidden', !economy.xLogin);
@@ -195,7 +197,12 @@
       case 'battle_end': onBattleEnd(m); break;
       case 'leaderboard': leaderboardList = m.list; renderLeaderboard(); if (m.hallOfFame) { hallList = m.hallOfFame; renderHall(); } break;
       case 'announce': toast(m.text, m.kind); if (m.kind === 'legendary' || m.kind === 'shiny' || m.kind === 'prize') sysChat(m.text); break;
-      case 'active_set': activeIndex = m.index; renderParty(); break;
+      case 'active_set': activeIndex = m.index; renderParty(); renderBag(); break;
+      case 'party_update': party = m.party; if (m.active != null) activeIndex = m.active; renderParty(); renderBag(); break;
+      case 'dex_update': setDex(m.dex); break;
+      case 'release_result': onReleaseResult(m); break;
+      case 'kicked': kickedMsg = m.msg || 'Signed in elsewhere.'; storage.del('arena-session'); toast(kickedMsg, 'error'); break;
+      case 'item_used': party = m.party; inventory = m.inventory; renderParty(); renderBag(); renderBattleBag(); toast(`${nameOf(m.dex)} recovered ${m.amount} HP (${m.name}).`, 'info'); break;
       case 'account':
         account = m.account;
         if (account && account.token) storage.set('arena-session', account.token); else if (!account) storage.del('arena-session');
@@ -212,7 +219,7 @@
         break;
       case 'season': season = m.season; renderSeason(); break;
       case 'shop_result':
-        if (m.ok) { inventory = m.inventory; renderBag(); renderBattleBag(); toast(`Bought ${m.qty}× ${D.ITEMS[m.item].name} — ${fmt(m.cost)} ${TICKER} queued to burn 🔥`, 'burn'); }
+        if (m.ok) { inventory = m.inventory; renderBag(); renderBattleBag(); toast(`Bought ${m.qty}× ${D.ITEMS[m.item].name} — ${fmt(m.burned)} ${TICKER} queued to burn 🔥 · ${fmt(m.toPool)} into the prize pool`, 'burn'); }
         else toast(m.error, 'error');
         break;
       case 'error': toast(m.msg, 'error'); if (!joined) $('join-error').textContent = m.msg; break;
@@ -280,9 +287,37 @@
     if (!me) return;
     $('me-card').innerHTML = `${spriteImg(me.mon, 56)}<div><div class="me-name" style="color:${esc(me.color)}">${esc(me.name)} <span class="lv">Lv ${me.level}</span></div><div class="me-stats"><span>${me.score} pts</span><span>${me.catches} caught</span><span>${me.wins}W ${me.losses}L</span></div></div>`;
   }
+  /* ---------- Pokédex: every species met (seen) or owned (caught) ---------- */
+  function setDex(d) {
+    if (!d) return;
+    dexState = { seen: new Set(d.seen || []), caught: new Set(d.caught || []), total: d.total || D.ROSTER.length };
+    renderDex();
+  }
+  function renderDex() {
+    const seen = dexState.seen.size, caught = dexState.caught.size, total = dexState.total || D.ROSTER.length;
+    const count = $('dex-count'); if (count) count.textContent = `${seen} seen · ${caught} caught`;
+    const mini = $('dex-mini');
+    if (mini) {
+      mini.innerHTML = joined
+        ? `<div class="dex-bar" title="${caught} of ${total} caught"><i style="width:${Math.round(caught / total * 100)}%"></i></div><div class="dex-mini-row"><span class="muted">${caught}/${total} caught · ${seen} seen</span><button class="btn btn-sm" id="dex-open" type="button">Open Pokédex</button></div>`
+        : '<span class="muted">Enter the arena first.</span>';
+      const open = $('dex-open'); if (open) open.addEventListener('click', () => openModal('modal-dex'));
+    }
+    const summary = $('dex-summary'); if (summary) summary.textContent = `${seen} of ${total} seen · ${caught} caught`;
+    const grid = $('dex-grid');
+    if (grid) grid.innerHTML = D.ROSTER.slice().sort((a, b) => a.dex - b.dex).map(sp => {
+      const state = dexState.caught.has(sp.dex) ? 'caught' : dexState.seen.has(sp.dex) ? 'seen' : 'unknown';
+      const num = '#' + String(sp.dex).padStart(3, '0');
+      if (state === 'unknown') return `<div class="dex-card unknown" title="Not met yet"><span class="q">?</span><b>${num}</b><small>???</small></div>`;
+      return `<div class="dex-card ${state}" title="${esc(sp.name)} · ${state}">${spriteImg({ dex: sp.dex, shiny: false }, 56)}<b>${num} ${esc(sp.name)}</b><small>${state === 'caught' ? typeBadges(sp.dex) : 'seen'}</small></div>`;
+    }).join('');
+  }
   function renderParty() {
     const wrap = $('party-list');
-    wrap.innerHTML = party.map((mon, i) => `<button type="button" class="party-mon ${i === activeIndex ? 'active' : ''}" data-i="${i}" title="${esc(nameOf(mon.dex))}">${spriteImg(mon, 44)}<small>${esc(nameOf(mon.dex))}</small></button>`).join('') + (party.length < 6 ? `<div class="party-empty">${6 - party.length} free</div>` : '');
+    wrap.innerHTML = party.map((mon, i) => {
+      const max = mon.maxHp || 1, hp = mon.hp == null ? max : mon.hp, pct = Math.round(hp / max * 100), fnt = hp <= 0;
+      return `<button type="button" class="party-mon ${i === activeIndex ? 'active' : ''} ${fnt ? 'fainted' : ''}" data-i="${i}" title="${esc(nameOf(mon.dex))} · ${hp}/${max} HP${fnt ? ' · fainted — heal with a Potion' : ''}">${spriteImg(mon, 44)}<small>${esc(nameOf(mon.dex))}</small><span class="php"><i style="width:${pct}%;background:${pct > 50 ? '#34d399' : pct > 20 ? '#fbbf24' : '#f87171'}"></i></span>${fnt ? '<em>FNT</em>' : ''}</button>`;
+    }).join('') + (party.length < 6 ? `<div class="party-empty">${6 - party.length} free</div>` : '');
     wrap.querySelectorAll('.party-mon').forEach(b => b.addEventListener('click', () => { if (!battle && !encounter) send({ t: 'set_active', index: Number(b.dataset.i) }); }));
   }
   function renderBag() {
@@ -292,10 +327,11 @@
     const balance = account ? account.balance : 0;
     const price = it => (economy.prices && economy.prices[it.id] != null) ? economy.prices[it.id] : it.price;
     wrap.innerHTML = `<div class="coins"><span class="muted">${account ? 'Your balance' : 'Sign in to shop'}</span><b>${account ? fmt(balance) + ' ' + TICKER : '—'}</b></div>` +
-      `<div class="inv">${owned.length ? owned.map(it => `<span title="${esc(it.desc)}">${it.icon} ${esc(it.name)} ×${inventory[it.id]}</span>`).join('') : '<span class="muted" style="border:0;background:none;padding:0">Bag is empty.</span>'}</div>` +
+      `<div class="inv">${owned.length ? owned.map(it => `<span title="${esc(it.desc)}">${it.icon} ${esc(it.name)} ×${inventory[it.id]}${it.kind === 'heal' && party[activeIndex] ? `<button type="button" class="use" data-use="${it.id}" title="Use on ${esc(nameOf(party[activeIndex].dex))} (your active Pokémon)">Use</button>` : ''}</span>`).join('') : '<span class="muted" style="border:0;background:none;padding:0">Bag is empty.</span>'}</div>` +
       `<div class="shop">${D.ITEM_LIST.map(it => { const p = price(it); const can = account && balance >= p; return `<div class="shop-item"><span class="ic">${it.icon}</span><span class="nm"><b>${esc(it.name)}</b><small>${esc(it.desc)}</small></span><span class="cost">${fmt(p)}</span><button class="btn btn-sm ${can ? 'btn-primary' : ''}" data-item="${it.id}" ${can ? '' : 'disabled'} title="${account ? '' : 'Sign in and deposit to buy'}">Buy</button></div>`; }).join('')}</div>` +
-      `<div class="burn-note">🔥 Every purchase is burned on-chain — nobody pockets it.</div>`;
+      `<div class="burn-note">🔥 ${economy.storeBurnPct != null ? economy.storeBurnPct : 40}% of every purchase is burned on-chain, ${economy.storePoolPct != null ? economy.storePoolPct : 60}% goes into the season prize pool — nobody pockets it.</div>`;
     wrap.querySelectorAll('button[data-item]').forEach(b => b.addEventListener('click', () => send({ t: 'buy_item', item: b.dataset.item, qty: 1 })));
+    wrap.querySelectorAll('button[data-use]').forEach(b => b.addEventListener('click', () => { if (battle || encounter) return toast('Finish what you are doing first.', 'error'); send({ t: 'use_item', item: b.dataset.use, index: activeIndex }); }));
   }
   function renderAccount() {
     const wrap = $('account-card');
@@ -531,7 +567,8 @@
       $('enc-throws').textContent = '';
       const rect = canvas.getBoundingClientRect(); FX.confetti(rect.left + rect.width / 2, rect.top + rect.height / 2, 80);
       party = r.party; renderParty(); renderBag();
-      setTimeout(() => { $('encounter-overlay').classList.add('hidden'); encounter = null; }, 1600);
+      if (r.partyFull) $('enc-msg').textContent += ' · party full — choose who to release';
+      setTimeout(() => { $('encounter-overlay').classList.add('hidden'); encounter = null; if (r.partyFull) showRelease(r.mon); }, 1600);
     } else {
       ball.className = 'enc-ball'; $('enc-sprite').classList.remove('shake');
       if (r.fled) { $('enc-msg').textContent = `${encounter.sp.name} broke free and ran.`; setTimeout(() => { $('encounter-overlay').classList.add('hidden'); encounter = null; }, 1400); }
@@ -539,6 +576,28 @@
     }
   }
   function onCatchResult(m) { encPending = m; }
+  /* ---------- Party full: the trainer picks what to release (server holds the new catch until they decide) ---------- */
+  let releasePick = null;
+  function showRelease(mon) {
+    releasePick = null;
+    const grid = $('release-grid');
+    const cards = party.map((m, i) => ({ m, i })).concat([{ m: mon, i: 6, isNew: true }]);
+    grid.innerHTML = cards.map(({ m, i, isNew }) => `<button type="button" class="release-pick ${isNew ? 'new' : ''}" data-i="${i}">${spriteImg(m, 48)}<b>${esc(nameOf(m.dex))}${m.shiny ? ' ✦' : ''}</b><small>${isNew ? 'just caught' : m.hp != null && m.maxHp ? `${m.hp}/${m.maxHp} HP` : ''}</small></button>`).join('');
+    grid.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+      releasePick = Number(b.dataset.i);
+      grid.querySelectorAll('button').forEach(x => x.classList.toggle('sel', Number(x.dataset.i) === releasePick));
+      $('release-hint').textContent = releasePick === 6 ? `Let the wild ${nameOf(mon.dex)} go and keep your party as it is` : `Release ${nameOf(party[releasePick].dex)} — ${nameOf(mon.dex)} takes its place`;
+      $('release-confirm').disabled = false;
+    }));
+    $('release-hint').textContent = 'Pick one to release'; $('release-confirm').disabled = true;
+    $('release-overlay').classList.remove('hidden');
+  }
+  $('release-confirm').addEventListener('click', () => { if (releasePick == null) return; send({ t: 'release', index: releasePick }); $('release-confirm').disabled = true; });
+  function onReleaseResult(m) {
+    $('release-overlay').classList.add('hidden'); releasePick = null;
+    party = m.party; if (m.active != null) activeIndex = m.active; renderParty(); renderBag();
+    toast(m.auto ? `Time ran out — the wild ${nameOf(m.released.dex)} was released.` : m.kept ? `${nameOf(m.released.dex)} was released. ${nameOf(m.kept.dex)} joined your party.` : `The wild ${nameOf(m.released.dex)} was released.`, 'info');
+  }
   function onEncounterEnd(m) {
     if (!encounter) return;
     if (m.reason === 'timeout') { $('enc-msg').textContent = 'It wandered off.'; setTimeout(() => { $('encounter-overlay').classList.add('hidden'); encounter = null; }, 1200); }
@@ -590,7 +649,8 @@
     battleLog(`${b.foe.name} sent out ${nameOf(b.foe.dex)}.`, 'sys');
     if (b.pot) battleLog(`${fmt(b.stake)} ${TICKER} staked each — winner takes the pot.`, 'super');
     battleLog(`Go, ${nameOf(b.me.dex)}!`, 'sys');
-    renderMoves(b.moves, true); renderBattleBag(); showBag(false);
+    renderMoves(b.moves, true); renderBattleBag(); renderBattleParty(); renderBattleBalls(); showPanel('moves');
+    if ((b.me.party || []).length > 1) battleLog(`${(b.me.party || []).filter(m => m.hp > 0).length} of your Pokémon can fight — switch from the Party tab.`, 'sys');
     $('battle-overlay').classList.remove('hidden');
     startTurnTimer(b.turnEndsAt);
     playCry(b.me.dex, 0.3); setTimeout(() => playCry(b.foe.dex, 0.3), 600);
@@ -607,8 +667,44 @@
     wrap.innerHTML = usable.length ? usable.map(it => `<button class="item-btn" data-item="${it.id}" ${enabled ? '' : 'disabled'}><b>${it.icon} ${esc(it.name)} ×${inventory[it.id]}</b><small>${esc(it.desc)} Uses your turn.</small></button>`).join('') : '<div class="empty">No usable items. Buy potions in the PokéStore.</div>';
     wrap.querySelectorAll('button[data-item]').forEach(b => b.addEventListener('click', () => useItem(b.dataset.item)));
   }
-  function showBag(on) { $('battle-bag').classList.toggle('hidden', !on); $('battle-moves').classList.toggle('hidden', on); $('battle-bag-btn').textContent = on ? 'Moves' : 'Bag'; }
-  $('battle-bag-btn').addEventListener('click', () => showBag($('battle-bag').classList.contains('hidden')));
+  let battlePanel = 'moves';
+  function showPanel(which) {
+    battlePanel = which;
+    $('battle-moves').classList.toggle('hidden', which !== 'moves');
+    $('battle-bag').classList.toggle('hidden', which !== 'bag');
+    $('battle-party').classList.toggle('hidden', which !== 'party');
+    $('battle-bag-btn').textContent = which === 'bag' ? 'Moves' : 'Bag';
+    $('battle-party-btn').textContent = which === 'party' ? 'Moves' : 'Party';
+  }
+  const showBag = on => showPanel(on ? 'bag' : 'moves');
+  $('battle-bag-btn').addEventListener('click', () => showPanel(battlePanel === 'bag' ? 'moves' : 'bag'));
+  $('battle-party-btn').addEventListener('click', () => showPanel(battlePanel === 'party' ? 'moves' : 'party'));
+  function renderBattleParty() {
+    const wrap = $('battle-party');
+    if (!battle) { wrap.innerHTML = ''; return; }
+    const b = battle.data, enabled = !battle.busy && !battle.over;
+    wrap.innerHTML = (b.me.party || []).map((mon, i) => {
+      const out = i === b.me.idx, fnt = mon.hp <= 0, pct = Math.round(mon.hp / mon.maxHp * 100);
+      return `<button class="item-btn party-pick ${out ? 'out' : ''} ${fnt ? 'fainted' : ''}" data-i="${i}" ${enabled && !out && !fnt ? '' : 'disabled'}>${spriteImg(mon, 36)}<span><b>${esc(nameOf(mon.dex))}${out ? ' · on the field' : fnt ? ' · fainted' : ''}</b><span class="php"><i style="width:${pct}%;background:${pct > 50 ? '#34d399' : pct > 20 ? '#fbbf24' : '#f87171'}"></i></span><small>${mon.hp}/${mon.maxHp} HP${out || fnt ? '' : ' · switch in (uses your turn)'}</small></span></button>`;
+    }).join('');
+    wrap.querySelectorAll('button[data-i]').forEach(el => el.addEventListener('click', () => switchMon(Number(el.dataset.i))));
+  }
+  function switchMon(i) {
+    if (!battle || battle.busy || battle.over) return;
+    const target = (battle.data.me.party || [])[i];
+    if (!target || target.hp <= 0) return;
+    battle.busy = true;
+    send({ t: 'battle_switch', index: i });
+    battleLog(`${nameOf(battle.data.me.dex)}, come back! Go, ${nameOf(target.dex)}!`, 'sys');
+    showPanel('moves'); renderMoves(battle.data.moves, false); renderBattleParty();
+  }
+  const dots = (alive, total) => '●'.repeat(Math.max(0, alive)) + '○'.repeat(Math.max(0, total - alive));
+  function renderBattleBalls() {
+    if (!battle) return;
+    const b = battle.data, mine = b.me.party || [];
+    $('me-balls').textContent = dots(mine.filter(m => m.hp > 0).length, mine.length);
+    $('foe-balls').textContent = dots(b.foe.remaining || 0, b.foe.partySize || 1);
+  }
   function chooseMove(i) {
     if (!battle || battle.busy || battle.over) return;
     battle.busy = true;
@@ -626,7 +722,7 @@
   function setHp(side, hp, max) { const pct = Math.max(0, hp / max * 100); const fill = $(`${side}-hp`); fill.style.width = pct + '%'; fill.style.background = pct > 50 ? '#34d399' : pct > 20 ? '#fbbf24' : '#f87171'; $(`${side}-hp-text`).textContent = `${hp}/${max}`; }
   function battleLog(text, cls) { const log = $('battle-log'); const el = document.createElement('div'); el.className = 'ev ' + (cls || ''); el.textContent = text; log.appendChild(el); while (log.children.length > 40) log.removeChild(log.firstChild); log.scrollTop = log.scrollHeight; }
   function startTurnTimer(endsAt) { clearInterval(battleTimerInt); const tick = () => { const left = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)); $('battle-timer').textContent = `Turn ${battle ? battle.data.turn : ''} · ${left}s`; }; tick(); battleTimerInt = setInterval(tick, 500); }
-  function buffs(side, st) { const el = $(`${side}-level`); const b = []; if (st && st.atk && st.atk.turns > 0) b.push('ATK↑'); if (st && st.def && st.def.turns > 0) b.push('DEF↑'); el.innerHTML = `Lv${side === 'me' ? battle.data.me.level : battle.data.foe.level}` + b.map(x => `<span class="buff">${x}</span>`).join(''); }
+  function buffs(side, st) { const el = $(`${side}-level`); const b = []; if (st && st.atk && st.atk.turns > 0) b.push('ATK↑'); if (st && st.def && st.def.turns > 0) b.push('DEF↑'); if (st && st.sleep > 0) b.push('ASLEEP'); el.innerHTML = `Lv${side === 'me' ? battle.data.me.level : battle.data.foe.level}` + b.map(x => `<span class="buff">${x}</span>`).join(''); }
   function onBattleTurn(m) {
     if (!battle) return;
     const b = battle.data;
@@ -642,14 +738,32 @@
           const el = $(`${side}-sprite`); el.classList.remove('hit'); void el.offsetWidth; el.classList.add('hit');
           currentHp[side] = Math.max(0, currentHp[side] - ev.dmg); setHp(side, currentHp[side], side === 'me' ? b.me.maxHp : b.foe.maxHp);
         } else if (ev.kind === 'heal') {
-          battleLog(`${who(ev.by)} used ${ev.move}. +${ev.amount} HP.`, '');
+          battleLog(`${who(ev.by)} used ${ev.move}. +${ev.amount} HP.${ev.rest ? ' It fell asleep.' : ''}`, '');
           const side = ev.by === myId ? 'me' : 'foe';
           currentHp[side] = Math.min(side === 'me' ? b.me.maxHp : b.foe.maxHp, currentHp[side] + ev.amount); setHp(side, currentHp[side], side === 'me' ? b.me.maxHp : b.foe.maxHp);
         } else if (ev.kind === 'item') {
           const side = ev.by === myId ? 'me' : 'foe';
           if (ev.amount != null) { battleLog(`${who(ev.by)} used ${ev.name}. +${ev.amount} HP.`, 'super'); currentHp[side] = Math.min(side === 'me' ? b.me.maxHp : b.foe.maxHp, currentHp[side] + ev.amount); setHp(side, currentHp[side], side === 'me' ? b.me.maxHp : b.foe.maxHp); }
           else battleLog(`${who(ev.by)} used ${ev.name} — ${ev.effect}.`, 'super');
-        } else if (ev.kind === 'miss') battleLog(`${who(ev.by)} used ${ev.move}… it missed.`, 'weak');
+        } else if (ev.kind === 'switch') {
+          const side = ev.by === myId ? 'me' : 'foe';
+          const st = side === 'me' ? b.me : b.foe;
+          st.dex = ev.dex; st.shiny = ev.shiny; st.maxHp = ev.maxHp; st.remaining = ev.remaining;
+          if (side === 'me') { b.me.idx = ev.idx; b.moves = D.BY_DEX[ev.dex].moves; }
+          const el = $(`${side}-sprite`); el.className = 'battle-sprite'; setSprite(el, { dex: ev.dex, shiny: ev.shiny }, side === 'me');
+          $(`${side}-name`).innerHTML = `${esc(nameOf(ev.dex))}${ev.shiny ? ' <i class="shiny">✦</i>' : ''} <small>${side === 'me' ? 'you' : esc(b.foe.name)}</small>`;
+          $(`${side}-types`).innerHTML = typeBadges(ev.dex);
+          currentHp[side] = ev.hp; setHp(side, ev.hp, ev.maxHp);
+          battleLog(side === 'me' ? `Go, ${nameOf(ev.dex)}!` : `${b.foe.name} sent out ${nameOf(ev.dex)}.`, 'sys');
+          renderBattleBalls(); playCry(ev.dex, 0.3);
+        } else if (ev.kind === 'faint') {
+          const side = ev.target === myId ? 'me' : 'foe';
+          battleLog(`${who(ev.target)} fainted!`, 'weak');
+          $(`${side}-sprite`).classList.add('faint');
+          currentHp[side] = 0; setHp(side, 0, side === 'me' ? b.me.maxHp : b.foe.maxHp);
+          playCry(ev.dex, 0.2);
+        } else if (ev.kind === 'sleep') battleLog(ev.woke ? `${who(ev.by)} woke up.` : `${who(ev.by)} is fast asleep.`, 'sys');
+        else if (ev.kind === 'miss') battleLog(`${who(ev.by)} used ${ev.move}… it missed.`, 'weak');
         else if (ev.kind === 'immune') battleLog(`${who(ev.by)} used ${ev.move}. It doesn't affect ${who(ev.target)}.`, 'weak');
       }, delay);
       delay += 900;
@@ -658,9 +772,15 @@
       if (!battle) return;
       currentHp.me = m.me.hp; currentHp.foe = m.foe.hp;
       setHp('me', m.me.hp, m.me.maxHp); setHp('foe', m.foe.hp, m.foe.maxHp);
+      // Authoritative sync after the animation: who is on the field, party HP, remaining Pokémon.
+      b.me.dex = m.me.dex; b.me.shiny = m.me.shiny; b.me.maxHp = m.me.maxHp; b.me.idx = m.me.idx; b.me.party = m.me.party || b.me.party; b.me.sleep = m.me.sleep;
+      b.foe.dex = m.foe.dex; b.foe.shiny = m.foe.shiny; b.foe.maxHp = m.foe.maxHp; b.foe.remaining = m.foe.remaining; b.foe.partySize = m.foe.partySize || b.foe.partySize;
+      b.moves = D.BY_DEX[b.me.dex].moves;
+      party = b.me.party || party; renderParty();
       buffs('me', m.me); buffs('foe', m.foe);
       b.turn = m.turn;
-      if (!battle.over) { battle.busy = false; renderMoves(b.moves, true); renderBattleBag(); startTurnTimer(m.turnEndsAt); }
+      renderBattleBalls();
+      if (!battle.over) { battle.busy = false; renderMoves(b.moves, true); renderBattleBag(); renderBattleParty(); startTurnTimer(m.turnEndsAt); }
     }, delay);
   }
   function onBattleEnd(m) {

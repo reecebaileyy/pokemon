@@ -81,12 +81,17 @@ Everything below is server-authoritative (`server.js` + `wallet.js`), persisted 
 - **Season prize pool** — `prizePoolShare`% of every fee accumulates in a pool; every `seasonHours` the pool pays the
   season's top 3 by points (50/30/20 %) and points reset. The remainder of the fee stays in the vault as treasury.
 - **Items** — potions / X Attack / X Defend are battle turns, Great/Ultra Balls change catch odds. Bought with
-  $POKEMON from your arena balance. Every token spent in the PokéStore is burned on-chain (100 %, batched roughly once a minute; the burn tx is linked in the Season card).
+  $POKEMON from your arena balance. Every purchase is split: `storeBurnPct` (default 40 %) is burned on-chain (batched roughly
+  once a minute; the burn tx is linked in the Season card and Docs) and the rest (60 %) goes straight into the season prize pool.
 
 **Env vars**: `VAULT_SECRET_KEY` (base58 or JSON array; if unset a keypair is generated into `data/vault.json` — back it
 up), `SOLANA_RPC` (use Helius/QuickNode in production), `TOKEN_MINT` / `TOKEN_DECIMALS` (default from config, 6),
 `ADMIN_KEY` (enables `GET /api/admin/vault?key=…`), `ARENA_DEV_FAUCET=1` (non-production only: `dev_credit` message
 adds balance for testing).
+
+**Moderation** — `moderation.js` censors chat (blocked words become `****`, including leet-speak like `sh1t` and
+stretched letters) and refuses blocked trainer names / smart-wallet usernames (they become `Trainer###` or are rejected).
+Tune it in `config.js → moderation` (`extra`, `extraStrong`, `allow` word lists).
 
 **Verifying burns** — every PokéStore purchase is burned from the vault with a Token-2022 `BurnChecked` (batched about
 once a minute). Audit trail: `GET /api/burns` lists every burn with its signature; the Season card links the latest ones.
