@@ -19,6 +19,8 @@
   const CHALLENGE_RANGE = 2;
 
   const canvas = $('game-canvas');
+  // Phones get a squarer handheld-style viewport (more rows visible in portrait)
+  if (window.matchMedia('(max-width: 820px)').matches) { canvas.width = 560; canvas.height = 480; }
   const ctx = canvas.getContext('2d');
   ctx.imageSmoothingEnabled = false;
   const VIEW_W = canvas.width, VIEW_H = canvas.height;
@@ -547,7 +549,7 @@
   window.addEventListener('keyup', e => { const d = keyDir[e.key.toLowerCase()]; if (d) keys.delete(d); });
   window.addEventListener('blur', () => keys.clear());
   const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
-  if (isTouch) $('arena-screen').classList.add('touch');
+  if (isTouch) $('arena').classList.add('touch');
   $('dpad').querySelectorAll('button').forEach(b => {
     const dir = b.dataset.dir;
     const down = e => { e.preventDefault(); heldDir = dir; };
@@ -559,6 +561,29 @@
     if (encounter) throwBall();
     else if (pendingChallenge) { send({ t: 'accept', id: pendingChallenge.id }); hideChallenge(); }
     else if (!battle) challengeNearest();
+  });
+  // Game Boy shell buttons (phones / touch): B = run/back, START = chat, SELECT = menu, COLOR = LCD toggle
+  $('b-btn').addEventListener('click', () => {
+    if (!joined) return;
+    if (encounter && !encounter.locked) send({ t: 'run' });
+    else if (pendingChallenge) { send({ t: 'decline', id: pendingChallenge.id }); hideChallenge(); }
+    else if ($('arena-side').classList.contains('open')) $('arena-side').classList.remove('open');
+  });
+  $('start-btn').addEventListener('click', () => { if (joined) { $('chat-input').focus(); $('chat-form').scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } });
+  $('select-btn').addEventListener('click', () => { const side = $('arena-side'); side.classList.toggle('open'); if (side.classList.contains('open')) side.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); });
+  const gbQuery = window.matchMedia('(max-width: 820px)');
+  function applyLcd() {
+    let pref = null;
+    try { pref = localStorage.getItem('arena-lcd'); } catch (e) { /* ignore */ }
+    $('arena-screen').classList.toggle('lcd', pref != null ? pref === '1' : gbQuery.matches);
+  }
+  applyLcd();
+  gbQuery.addEventListener('change', applyLcd);
+  $('lcd-toggle').addEventListener('click', () => {
+    const on = !$('arena-screen').classList.contains('lcd');
+    $('arena-screen').classList.toggle('lcd', on);
+    try { localStorage.setItem('arena-lcd', on ? '1' : '0'); } catch (e) { /* ignore */ }
+    toast(on ? 'LCD mode' : 'Colour mode', 'info');
   });
   function tryMove(now) {
     if (!joined || !me || encounter || battle) return;

@@ -14,6 +14,11 @@
   const fmtPct = v => v == null || isNaN(v) ? '—' : (v >= 0 ? '+' : '') + Number(v).toFixed(1) + '%';
   const dirCls = v => v == null || isNaN(v) ? '' : v >= 0 ? 'up' : 'down';
   const ageOf = ts => { const h = Math.max(0, (Date.now() - ts) / 36e5); return h < 1 ? `${Math.round(h * 60)}m` : h < 48 ? `${Math.round(h)}h` : `${Math.round(h / 24)}d`; };
+  // Phones render the site as a Game Boy: charts switch to the 4-shade LCD palette.
+  const gbQuery = window.matchMedia('(max-width: 820px)');
+  const pal = () => gbQuery.matches
+    ? { grid: 'rgba(15,56,15,0.18)', text: '#306230', up: '#306230', down: '#0f380f', volUp: 'rgba(48,98,48,0.5)', volDown: 'rgba(15,56,15,0.5)', last: '#0f380f', lastText: '#9bbc0f', lastLine: 'rgba(15,56,15,0.6)', cross: 'rgba(15,56,15,0.5)', sparkUp: '#0f380f', sparkDown: '#306230', sparkFillUp: 'rgba(15,56,15,0.18)', sparkFillDown: 'rgba(48,98,48,0.18)', hollowUp: true, bg: '#9bbc0f' }
+    : { grid: 'rgba(255,255,255,0.06)', text: '#8b8b95', up: '#34d399', down: '#f87171', volUp: 'rgba(52,211,153,0.28)', volDown: 'rgba(248,113,113,0.28)', last: '#ffcb05', lastText: '#1a1400', lastLine: 'rgba(255,203,5,0.6)', cross: 'rgba(255,255,255,0.25)', sparkUp: '#34d399', sparkDown: '#f87171', sparkFillUp: 'rgba(52,211,153,0.25)', sparkFillDown: 'rgba(248,113,113,0.25)', hollowUp: false, bg: '#131316' };
 
   /* ---------- Config binding ---------- */
   document.querySelectorAll('[data-cfg]').forEach(el => { const k = el.getAttribute('data-cfg'); if (C[k] != null) el.textContent = C[k]; });
@@ -57,9 +62,10 @@
     const c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, W, H);
     const lo = Math.min(...closes), hi = Math.max(...closes), span = hi - lo || 1;
     const up = closes[closes.length - 1] >= closes[0];
-    const col = up ? '#34d399' : '#f87171';
+    const P = pal();
+    const col = up ? P.sparkUp : P.sparkDown;
     const pts = closes.map((v, i) => [i / (closes.length - 1) * W, 4 + (1 - (v - lo) / span) * (H - 8)]);
-    const g = c.createLinearGradient(0, 0, 0, H); g.addColorStop(0, up ? 'rgba(52,211,153,0.25)' : 'rgba(248,113,113,0.25)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+    const g = c.createLinearGradient(0, 0, 0, H); g.addColorStop(0, up ? P.sparkFillUp : P.sparkFillDown); g.addColorStop(1, 'rgba(0,0,0,0)');
     c.beginPath(); c.moveTo(pts[0][0], H); pts.forEach(p => c.lineTo(p[0], p[1])); c.lineTo(W, H); c.closePath(); c.fillStyle = g; c.fill();
     c.beginPath(); pts.forEach((p, i) => i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1])); c.strokeStyle = col; c.lineWidth = 1.5; c.lineJoin = 'round'; c.stroke();
   }
@@ -77,6 +83,7 @@
     ccv.width = W * dpr; ccv.height = H * dpr;
     cctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     cctx.clearRect(0, 0, W, H);
+    const P = pal();
     const cs = chart.candles, n = cs.length;
     $('chart-empty').classList.toggle('hidden', n > 0);
     if (!n) return;
@@ -94,8 +101,8 @@
     cctx.font = '11px "JetBrains Mono", ui-monospace, monospace'; cctx.textBaseline = 'middle'; cctx.textAlign = 'left';
     for (let k = 0; k <= 4; k++) {
       const p = lo + (hi - lo) * k / 4, yy = y(p);
-      cctx.strokeStyle = 'rgba(255,255,255,0.06)'; cctx.beginPath(); cctx.moveTo(L, yy); cctx.lineTo(W - R + 4, yy); cctx.stroke();
-      cctx.fillStyle = '#8b8b95'; cctx.fillText(fmtPrice(p).replace('$', ''), W - R + 10, yy);
+      cctx.strokeStyle = P.grid; cctx.beginPath(); cctx.moveTo(L, yy); cctx.lineTo(W - R + 4, yy); cctx.stroke();
+      cctx.fillStyle = P.text; cctx.fillText(fmtPrice(p).replace('$', ''), W - R + 10, yy);
     }
     // x labels
     cctx.textAlign = 'center'; cctx.textBaseline = 'alphabetic';
@@ -104,33 +111,35 @@
     for (let i = 0; i < n; i += step) {
       const d = new Date(cs[i][0]);
       const label = spanMs > 36e5 * 36 ? d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      cctx.fillStyle = '#8b8b95'; cctx.fillText(label, x(i), H - 8);
+      cctx.fillStyle = P.text; cctx.fillText(label, x(i), H - 8);
     }
     // volume
     const volTop = T + priceH + 8;
     for (let i = 0; i < n; i++) {
       const c = cs[i], up = c[4] >= c[1], h = maxV ? (c[5] / maxV) * volH : 0;
-      cctx.fillStyle = up ? 'rgba(52,211,153,0.28)' : 'rgba(248,113,113,0.28)';
+      cctx.fillStyle = up ? P.volUp : P.volDown;
       cctx.fillRect(x(i) - Math.max(1, xw * 0.35), volTop + volH - h, Math.max(2, xw * 0.7), h);
     }
     // candles
     for (let i = 0; i < n; i++) {
-      const c = cs[i], up = c[4] >= c[1], col = up ? '#34d399' : '#f87171', cx = x(i);
+      const c = cs[i], up = c[4] >= c[1], col = up ? P.up : P.down, cx = x(i);
       cctx.strokeStyle = col; cctx.lineWidth = 1;
       cctx.beginPath(); cctx.moveTo(cx, Math.max(T, y(c[2]))); cctx.lineTo(cx, Math.min(T + priceH, y(c[3]))); cctx.stroke();
       const top = y(Math.max(c[1], c[4])), bot = y(Math.min(c[1], c[4]));
-      cctx.fillStyle = col; cctx.fillRect(cx - Math.max(1, xw * 0.35), top, Math.max(2, xw * 0.7), Math.max(1, bot - top));
+      const bx = cx - Math.max(1, xw * 0.35), bw = Math.max(2, xw * 0.7), bh = Math.max(1, bot - top);
+      if (P.hollowUp && up && bw >= 4) { cctx.fillStyle = P.bg; cctx.fillRect(bx, top, bw, bh); cctx.strokeStyle = col; cctx.strokeRect(bx + 0.5, top + 0.5, bw - 1, Math.max(1, bh - 1)); }
+      else { cctx.fillStyle = col; cctx.fillRect(bx, top, bw, bh); }
     }
     // last price line
     const last = cs[n - 1][4], ly = y(last);
-    cctx.setLineDash([3, 3]); cctx.strokeStyle = 'rgba(255,203,5,0.6)'; cctx.beginPath(); cctx.moveTo(L, ly); cctx.lineTo(W - R + 4, ly); cctx.stroke(); cctx.setLineDash([]);
+    cctx.setLineDash([3, 3]); cctx.strokeStyle = P.lastLine; cctx.beginPath(); cctx.moveTo(L, ly); cctx.lineTo(W - R + 4, ly); cctx.stroke(); cctx.setLineDash([]);
     const tag = fmtPrice(last).replace('$', ''), tw = cctx.measureText(tag).width + 10;
-    cctx.fillStyle = '#ffcb05'; cctx.fillRect(W - R + 6, ly - 9, tw, 18);
-    cctx.fillStyle = '#1a1400'; cctx.textAlign = 'left'; cctx.textBaseline = 'middle'; cctx.fillText(tag, W - R + 11, ly);
+    cctx.fillStyle = P.last; cctx.fillRect(W - R + 6, ly - 9, tw, 18);
+    cctx.fillStyle = P.lastText; cctx.textAlign = 'left'; cctx.textBaseline = 'middle'; cctx.fillText(tag, W - R + 11, ly);
     // hover
     if (chart.hover >= 0 && chart.hover < n) {
       const i = chart.hover, cx = x(i);
-      cctx.strokeStyle = 'rgba(255,255,255,0.25)'; cctx.setLineDash([2, 3]); cctx.beginPath(); cctx.moveTo(cx, T); cctx.lineTo(cx, H - B); cctx.stroke(); cctx.setLineDash([]);
+      cctx.strokeStyle = P.cross; cctx.setLineDash([2, 3]); cctx.beginPath(); cctx.moveTo(cx, T); cctx.lineTo(cx, H - B); cctx.stroke(); cctx.setLineDash([]);
       const c = cs[i], d = new Date(c[0]);
       const chg = ((c[4] - c[1]) / c[1]) * 100;
       $('chart-tooltip').innerHTML = `<div>${d.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div><div><b>O</b>${fmtPrice(c[1])} <b>H</b>${fmtPrice(c[2])}</div><div><b>L</b>${fmtPrice(c[3])} <b>C</b>${fmtPrice(c[4])}</div><div><b>Vol</b>${fmtUsd(c[5])} <span class="${dirCls(chg)}">${fmtPct(chg)}</span></div>`;
@@ -144,7 +153,9 @@
     chart.hover = i >= 0 && i < n ? i : -1; drawChart();
   });
   ccv.addEventListener('mouseleave', () => { chart.hover = -1; drawChart(); });
-  window.addEventListener('resize', () => { drawChart(); if (chart.candles.length) drawSparkline(chart.candles.slice(-48).map(c => c[4])); });
+  const redraw = () => { drawChart(); if (chart.candles.length) drawSparkline(chart.candles.slice(-48).map(c => c[4])); };
+  window.addEventListener('resize', redraw);
+  gbQuery.addEventListener('change', redraw);
   async function loadChart() {
     try {
       const r = await fetch(`/api/chart?tf=${chart.tf}`, { cache: 'no-store' });
