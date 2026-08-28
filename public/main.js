@@ -233,6 +233,10 @@
     $('lore-caption').textContent = L.imageCaption || '';
     // Chapter copy is site-owned config (not user input), so inline markup like <b id="lore-burned"> is allowed.
     $('lore-chapters').innerHTML = (L.chapters || []).map((ch, i) => `<li><span class="num">${String(i + 1).padStart(2, '0')}</span><div><h3>${esc(ch.title)}</h3><p>${ch.text}</p></div></li>`).join('');
+    const vw = $('lore-video');
+    if (L.video && L.video.src) {
+      vw.innerHTML = `<div class="lore-video-head"><h3>${esc(L.video.title || 'Receipts')}</h3><span>${esc(L.video.caption || '')}</span></div><video controls playsinline preload="metadata" src="${esc(L.video.src)}"></video>`;
+    } else vw.remove();
   })();
 
   /* ---------- Community ---------- */

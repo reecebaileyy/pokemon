@@ -183,7 +183,8 @@ if (TOKEN_MINT) { getTokenMetrics().then(() => getChart('15m')); setInterval(get
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'application/javascript; charset=utf-8',
   '.json': 'application/json; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.gif': 'image/gif', '.svg': 'image/svg+xml',
-  '.ico': 'image/x-icon', '.ogg': 'audio/ogg', '.webmanifest': 'application/manifest+json', '.txt': 'text/plain; charset=utf-8', '.woff2': 'font/woff2'
+  '.ico': 'image/x-icon', '.ogg': 'audio/ogg', '.mp4': 'video/mp4', '.webm': 'video/webm', '.mp3': 'audio/mpeg',
+  '.webmanifest': 'application/manifest+json', '.txt': 'text/plain; charset=utf-8', '.woff2': 'font/woff2'
 };
 
 const server = http.createServer((req, res) => {
@@ -197,12 +198,29 @@ const server = http.createServer((req, res) => {
   if (urlPath === '/') urlPath = '/index.html';
   const filePath = path.normalize(path.join(PUBLIC_DIR, urlPath));
   if (!filePath.startsWith(PUBLIC_DIR)) { res.writeHead(403); res.end('Forbidden'); return; }
-  fs.readFile(filePath, (err, data) => {
-    if (err) { res.writeHead(404, { 'Content-Type': 'text/plain' }); res.end('404 — a wild 404 appeared!'); return; }
+  fs.stat(filePath, (err, st) => {
+    if (err || !st.isFile()) { res.writeHead(404, { 'Content-Type': 'text/plain' }); res.end('404 — a wild 404 appeared!'); return; }
     const ext = path.extname(filePath).toLowerCase();
     const isAsset = urlPath.startsWith('/assets/');
-    res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream', 'Cache-Control': ext === '.html' ? 'no-cache' : isAsset ? 'public, max-age=604800, immutable' : 'public, max-age=300' });
-    res.end(data);
+    const headers = {
+      'Content-Type': MIME[ext] || 'application/octet-stream',
+      'Cache-Control': ext === '.html' ? 'no-cache' : isAsset ? 'public, max-age=604800, immutable' : 'public, max-age=300',
+      'Accept-Ranges': 'bytes'
+    };
+    // Byte-range support so <video>/<audio> can seek (required by iOS Safari)
+    const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || '');
+    if (range && (range[1] || range[2])) {
+      let start = range[1] ? Number(range[1]) : Math.max(0, st.size - Number(range[2]));
+      let end = range[1] && range[2] ? Math.min(Number(range[2]), st.size - 1) : st.size - 1;
+      if (Number.isNaN(start) || Number.isNaN(end) || start > end || start >= st.size) { res.writeHead(416, { 'Content-Range': `bytes */${st.size}` }); res.end(); return; }
+      res.writeHead(206, Object.assign(headers, { 'Content-Range': `bytes ${start}-${end}/${st.size}`, 'Content-Length': end - start + 1 }));
+      if (req.method === 'HEAD') return res.end();
+      fs.createReadStream(filePath, { start, end }).on('error', () => res.destroy()).pipe(res);
+      return;
+    }
+    res.writeHead(200, Object.assign(headers, { 'Content-Length': st.size }));
+    if (req.method === 'HEAD') return res.end();
+    fs.createReadStream(filePath).on('error', () => res.destroy()).pipe(res);
   });
 });
 

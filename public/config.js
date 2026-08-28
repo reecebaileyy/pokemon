@@ -30,6 +30,12 @@ window.SITE_CONFIG = {
     imageAlt: 'Post from the verified @Pokemon account introducing $POKEMON with the contract address',
     imageCaption: '@Pokemon · 27 Aug 2026 · the only contract address the account has ever posted',
     tweetUrl: '',
+    // Short clip shown under the chapters (leave `src` empty to hide).
+    video: {
+      src: 'assets/lore/fee-burn-proof.mp4',
+      title: 'Receipts',
+      caption: 'pump.fun confirming the creator fees go to the incinerator.'
+    },
     chapters: [
       {
         title: 'Posted by Pokémon itself',
