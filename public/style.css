@@ -592,3 +592,50 @@ i.shiny { color: var(--accent); font-style: normal; font-size: 0.75em; margin-le
 @media (max-width: 1000px) { .docs-stats, .docs-steps { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 820px) { .docs-grid, .docs-verify { grid-template-columns: 1fr; } }
 @media (max-width: 560px) { .docs-stats, .docs-steps { grid-template-columns: 1fr; } }
+/* Party HP + battle party tab */
+.party-mon .php, .party-pick .php { display: block; width: 100%; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; margin-top: 3px; }
+.party-mon .php i, .party-pick .php i { display: block; height: 100%; }
+.party-mon.fainted img { filter: grayscale(1); opacity: 0.45; }
+.party-mon em { position: absolute; top: 3px; right: 5px; font-size: 0.55rem; font-style: normal; font-weight: 700; color: var(--red); }
+.party-mon.active.fainted::after { display: none; }
+.bag .inv .use { margin-left: 0.45em; font-size: 0.68rem; padding: 0.1em 0.5em; border-radius: 6px; border: 1px solid var(--line-2); background: var(--surface); color: var(--text); cursor: pointer; }
+.bag .inv .use:hover { border-color: var(--accent); }
+.battle-party { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+.battle-party .party-pick { border: 1px solid var(--line-2); border-radius: 10px; padding: 0.45rem 0.6rem; background: var(--surface-2); text-align: left; display: flex; align-items: center; gap: 0.5rem; }
+.battle-party .party-pick > span { flex: 1; min-width: 0; display: grid; gap: 0.15rem; }
+.battle-party .party-pick b { font-size: 0.82rem; }
+.battle-party .party-pick small { font-size: 0.68rem; color: var(--muted); }
+.battle-party .party-pick:hover:not(:disabled) { background: #222228; }
+.battle-party .party-pick:disabled { opacity: 0.45; }
+.battle-party .party-pick.out { border-color: var(--accent); }
+.hp-name .balls { margin-left: auto; font-size: 0.7rem; letter-spacing: 0.12em; color: var(--accent); white-space: nowrap; }
+@media (max-width: 560px) { .battle-party { grid-template-columns: 1fr; } }
+/* Party-full release chooser */
+.release-card { width: min(640px, 100%); display: grid; gap: 0.8rem; }
+.release-card h3 { font-size: 1.1rem; }
+.release-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; }
+.release-pick { background: var(--surface-2); border: 1px solid var(--line-2); border-radius: 10px; padding: 0.5rem 0.4rem; display: grid; place-items: center; gap: 0.15rem; }
+.release-pick b { font-size: 0.78rem; }
+.release-pick small { font-size: 0.68rem; color: var(--muted); }
+.release-pick.new { border-color: var(--accent); }
+.release-pick.new::before { content: 'NEW'; font-size: 0.6rem; font-weight: 700; color: var(--accent-ink); background: var(--accent); border-radius: 999px; padding: 0.05em 0.5em; }
+.release-pick.sel { outline: 2px solid var(--red); background: rgba(248,113,113,0.12); }
+.release-foot { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; font-size: 0.85rem; }
+@media (max-width: 560px) { .release-grid { grid-template-columns: repeat(3, 1fr); } }
+/* Pokédex */
+.dex-mini { display: grid; gap: 0.45rem; font-size: 0.8rem; }
+.dex-bar { height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; }
+.dex-bar i { display: block; height: 100%; background: var(--accent); }
+.dex-mini-row { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.modal-card.dex { width: min(760px, 100%); max-height: 88vh; overflow: auto; }
+.dex-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 0.5rem; }
+.dex-card { background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 0.5rem 0.3rem; display: grid; place-items: center; gap: 0.15rem; text-align: center; min-height: 104px; }
+.dex-card img { width: 56px; height: 56px; image-rendering: pixelated; }
+.dex-card b { font-size: 0.7rem; }
+.dex-card small { font-size: 0.62rem; color: var(--muted); display: flex; gap: 0.2rem; flex-wrap: wrap; justify-content: center; }
+.dex-card.caught { border-color: rgba(255,203,5,0.45); }
+.dex-card.seen img { filter: brightness(0); opacity: 0.55; }
+.dex-card.unknown { color: var(--muted); border-style: dashed; }
+.dex-card.unknown .q { width: 56px; height: 56px; display: grid; place-items: center; font-size: 1.6rem; font-weight: 700; color: rgba(255,255,255,0.25); }
+@media (max-width: 820px) { .dex-grid { grid-template-columns: repeat(4, 1fr); } }
+@media (max-width: 560px) { .dex-grid { grid-template-columns: repeat(3, 1fr); } }

@@ -164,16 +164,25 @@
               <div class="evo"><div class="evo-sprite" id="evo-sprite"></div><div class="evo-text" id="evo-text"></div></div>
             </div>
 
+            <div class="overlay hidden" id="release-overlay">
+              <div class="card release-card">
+                <h3>Your party is full</h3>
+                <p class="muted">Choose one Pokémon to release into the wild — the other six stay with you. Nothing is released until you confirm.</p>
+                <div class="release-grid" id="release-grid"></div>
+                <div class="release-foot"><span class="muted" id="release-hint">Pick one to release</span><button class="btn btn-primary" id="release-confirm" type="button" disabled>Release</button></div>
+              </div>
+            </div>
+
             <div class="overlay hidden" id="battle-overlay">
               <div class="battle">
                 <div class="field">
                   <div class="side foe">
-                    <div class="hp-box"><div class="hp-name"><span id="foe-name"></span><span id="foe-level" class="lv"></span></div><div class="types" id="foe-types"></div><div class="hp-bar"><div class="hp-fill" id="foe-hp"></div></div><div class="hp-text" id="foe-hp-text"></div></div>
+                    <div class="hp-box"><div class="hp-name"><span id="foe-name"></span><span id="foe-level" class="lv"></span><span class="balls" id="foe-balls" title="Pokémon left"></span></div><div class="types" id="foe-types"></div><div class="hp-bar"><div class="hp-fill" id="foe-hp"></div></div><div class="hp-text" id="foe-hp-text"></div></div>
                     <div class="battle-sprite" id="foe-sprite"></div>
                   </div>
                   <div class="side me">
                     <div class="battle-sprite" id="me-sprite"></div>
-                    <div class="hp-box"><div class="hp-name"><span id="me-name"></span><span id="me-level" class="lv"></span></div><div class="types" id="me-types"></div><div class="hp-bar"><div class="hp-fill" id="me-hp"></div></div><div class="hp-text" id="me-hp-text"></div></div>
+                    <div class="hp-box"><div class="hp-name"><span id="me-name"></span><span id="me-level" class="lv"></span><span class="balls" id="me-balls" title="Pokémon left"></span></div><div class="types" id="me-types"></div><div class="hp-bar"><div class="hp-fill" id="me-hp"></div></div><div class="hp-text" id="me-hp-text"></div></div>
                   </div>
                 </div>
                 <div class="console">
@@ -181,8 +190,9 @@
                   <div class="battle-actions">
                     <div class="battle-moves" id="battle-moves"></div>
                     <div class="battle-bag hidden" id="battle-bag"></div>
+                    <div class="battle-party hidden" id="battle-party"></div>
                   </div>
-                  <div class="battle-foot"><span id="battle-timer"></span><span class="battle-pot" id="battle-pot"></span><span class="battle-foot-btns"><button class="btn btn-ghost btn-sm" id="battle-bag-btn" type="button">Bag</button><button class="btn btn-ghost btn-sm" id="battle-forfeit" type="button">Forfeit</button></span></div>
+                  <div class="battle-foot"><span id="battle-timer"></span><span class="battle-pot" id="battle-pot"></span><span class="battle-foot-btns"><button class="btn btn-ghost btn-sm" id="battle-party-btn" type="button">Party</button><button class="btn btn-ghost btn-sm" id="battle-bag-btn" type="button">Bag</button><button class="btn btn-ghost btn-sm" id="battle-forfeit" type="button">Forfeit</button></span></div>
                 </div>
               </div>
             </div>
@@ -218,12 +228,13 @@
           <section class="panel"><h4>You</h4><div class="me-card" id="me-card"><span class="muted">Not in the arena.</span></div></section>
           <section class="panel" id="account-panel"><h4>Account <small>save progress · stake $POKEMON</small></h4><div class="account-card" id="account-card"><span class="muted">Enter the arena first.</span></div></section>
           <section class="panel"><h4>Party <small>tap to switch</small></h4><div class="party" id="party-list"></div></section>
+          <section class="panel"><h4>Pokédex <small id="dex-count">0 seen · 0 caught</small></h4><div class="dex-mini" id="dex-mini"><span class="muted">Enter the arena first.</span></div></section>
           <section class="panel"><h4>Nearby <small>battle · stake</small></h4><div class="nearby-list" id="nearby-list"><div class="muted">—</div></div></section>
           <section class="panel"><h4>Leaderboard <small>live</small></h4><ol class="lb" id="leaderboard"></ol></section>
         </aside>
 
         <div class="arena-under">
-          <section class="panel"><h4>PokéStore <small>paid in $POKEMON · 100% burned</small></h4><div class="bag" id="bag"></div></section>
+          <section class="panel"><h4>PokéStore <small>paid in $POKEMON · <span data-econ="storeBurnPct">40</span>% burned · <span data-econ="storePoolPct">60</span>% to the prize pool</small></h4><div class="bag" id="bag"></div></section>
           <section class="panel" id="season-panel"><h4>Season prize pool</h4><div class="season-card" id="season-card"><span class="muted">—</span></div></section>
           <section class="panel"><h4>Hall of fame <small>all time</small></h4><ol class="lb" id="hall-of-fame"></ol></section>
         </div>
@@ -237,7 +248,7 @@
 
       <div class="docs-burn">
         <div class="docs-burn-head">
-          <div><h3>Burn mechanics</h3><p class="muted">The PokéStore has no revenue. 100% of what players spend is destroyed on-chain by the arena vault — nobody, including the team, receives it.</p></div>
+          <div><h3>Burn mechanics</h3><p class="muted">The PokéStore has no revenue. <b><span data-econ="storeBurnPct">40</span>%</b> of what players spend is destroyed on-chain by the arena vault and the other <b><span data-econ="storePoolPct">60</span>%</b> goes straight into the season prize pool paid to the top 3 — nobody, including the team, receives any of it.</p></div>
           <a class="btn btn-sm" href="/api/burns" target="_blank" rel="noopener">Full burn log ↗</a>
         </div>
         <div class="docs-stats">
@@ -248,7 +259,7 @@
         </div>
         <ol class="docs-steps">
           <li><b>You buy an item.</b> The price is debited from your arena balance in <span data-cfg="ticker">$POKEMON</span>. Guests can't shop — sign in and deposit first.</li>
-          <li><b>It joins the burn queue.</b> Purchases are grouped so one transaction can burn many buys; the queued amount is shown live above.</li>
+          <li><b>It is split on the spot.</b> <span data-econ="storePoolPct">60</span>% is credited to the season prize pool immediately; <span data-econ="storeBurnPct">40</span>% joins the burn queue, where purchases are grouped so one transaction can burn many buys. The queued amount is shown live above.</li>
           <li><b>The vault burns it.</b> Within about a minute the vault wallet signs a Token-2022 <code>BurnChecked</code>: the tokens are destroyed and the mint's supply drops by exactly that amount. Nothing is transferred anywhere.</li>
           <li><b>The proof is public.</b> The signature is recorded and linked here, in the Season panel and at <code>/api/burns</code>. If a burn fails (RPC hiccup) it stays queued and retries — nothing is lost.</li>
         </ol>
@@ -273,11 +284,12 @@
         </section>
         <section>
           <h4>3 · Catch</h4>
-          <p>Wild Pokémon hide in <b>tall grass</b>. Step onto one, then stop the moving marker in the green zone — gold is a perfect throw. You get three throws; <b>Great</b> and <b>Ultra Balls</b> from the store raise your odds. 1 in 32 spawns is <b>shiny</b> (×3 points); legendaries are announced to everyone. Your party holds six — tap one in the Party panel to make it active.</p>
+          <p>Wild Pokémon hide in <b>tall grass</b>. Step onto one, then stop the moving marker in the green zone — gold is a perfect throw. You get three throws; <b>Great</b> and <b>Ultra Balls</b> from the store raise your odds. 1 in 32 spawns is <b>shiny</b> (×3 points); legendaries are announced to everyone. Your party holds six — tap one in the Party panel to make it active. Catch a seventh and <b>you choose</b> which one goes back into the wild (the new catch included); nothing is removed for you. Every Pokémon you meet — in the grass or across the field — is logged in your Pokédex (sidebar), and catching it fills the entry in.</p>
         </section>
         <section>
           <h4>4 · Battle</h4>
-          <p>Walk next to a trainer and press <kbd>Space</kbd> (or Battle in the Nearby panel). Battles are turn-based, 25 seconds per turn: choose one of four moves or open the <b>Bag</b> — Potions heal, X Attack / X Defend buff you for three turns, and using an item takes your turn. The full type chart applies (water beats fire, ghost ignores normal, and so on). Winner +25 points, loser +5. Forfeiting or disconnecting counts as a loss.</p>
+          <p>Walk next to a trainer and press <kbd>Space</kbd> (or Battle in the Nearby panel). Battles are turn-based, 25 seconds per turn: choose one of four moves or open the <b>Bag</b> — Potions heal, X Attack / X Defend buff you for three turns, and using an item takes your turn. The full type chart applies (water beats fire, ghost ignores normal, and so on). When your Pokémon faints the next healthy one in your party is sent out automatically — you only lose when your whole party is down. Switch at any time from the <b>Party</b> tab (it uses your turn, and the newcomer takes that turn's hit). Winner +25 points, loser +5. Forfeiting or disconnecting counts as a loss.</p>
+          <p><b>Damage sticks.</b> HP does not come back between battles. Heal with Potions — from the Bag (<b>Use</b>) between battles or mid-fight — or with the <b>Rest</b> move, which fully heals but leaves the Pokémon asleep for two turns. A fainted Pokémon can't battle until it is healed, and a trainer whose whole party has fainted can't start one.</p>
         </section>
         <section>
           <h4>5 · Level up &amp; evolve</h4>
@@ -285,11 +297,11 @@
         </section>
         <section>
           <h4>6 · PokéStore</h4>
-          <p>Potions, X items and balls are sold for <b><span data-cfg="ticker">$POKEMON</span></b> from your arena balance (sign in and deposit first). <b>100% of what you spend is burned</b> — the vault destroys it on-chain, so every purchase permanently shrinks the supply. Prices: Potion <span data-econ="price_potion">500</span>, Super Potion <span data-econ="price_superpotion">1,200</span>, Hyper Potion <span data-econ="price_hyperpotion">2,800</span>, Full Restore <span data-econ="price_fullrestore">5,000</span>, X Attack / X Defend <span data-econ="price_xattack">1,800</span>, Great Ball <span data-econ="price_greatball">1,000</span>, Ultra Ball <span data-econ="price_ultraball">2,500</span>.</p>
+          <p>Potions, X items and balls are sold for <b><span data-cfg="ticker">$POKEMON</span></b> from your arena balance (sign in and deposit first). <b><span data-econ="storeBurnPct">40</span>% of what you spend is burned</b> on-chain by the vault and <b><span data-econ="storePoolPct">60</span>% goes into the season prize pool</b> — every purchase shrinks the supply and fattens the pot; the team keeps nothing. Prices: Potion <span data-econ="price_potion">500</span>, Super Potion <span data-econ="price_superpotion">1,200</span>, Hyper Potion <span data-econ="price_hyperpotion">2,800</span>, Full Restore <span data-econ="price_fullrestore">5,000</span>, X Attack / X Defend <span data-econ="price_xattack">1,800</span>, Great Ball <span data-econ="price_greatball">1,000</span>, Ultra Ball <span data-econ="price_ultraball">2,500</span>.</p>
         </section>
         <section>
           <h4>7 · Accounts</h4>
-          <p><b>Continue with X</b> (your X account becomes your smart wallet — nothing to remember), <b>connect a wallet</b> (Phantom / Solflare signs a message — no transaction, no fee), or create a <b>smart wallet</b> with a username + passphrase. A smart wallet is an account that lives inside the arena with its own deposit address, for players without a browser wallet. Either way your progress resumes when you come back.</p>
+          <p><b>Continue with X</b> (your X account becomes your smart wallet — nothing to remember), <b>connect a wallet</b> (Phantom / Solflare signs a message — no transaction, no fee), or create a <b>smart wallet</b> with a username + passphrase. A smart wallet is an account that lives inside the arena with its own deposit address, for players without a browser wallet. Either way your progress resumes when you come back. One live session per account: signing in from another tab or device closes the older one.</p>
         </section>
         <section>
           <h4>8 · Staking <span data-cfg="ticker">$POKEMON</span></h4>
@@ -297,7 +309,7 @@
         </section>
         <section>
           <h4>9 · Season prize pool</h4>
-          <p><span data-econ="prizePoolShare">75</span>% of every fee goes into the pool. Every <span data-econ="seasonHours">24</span> hours it pays the season's top 3 by points — 50 / 30 / 20 % — and points reset. Catching, winning and staking all count. The rest of the fee stays in the vault as treasury; it is the only <span data-cfg="ticker">$POKEMON</span> the arena keeps.</p>
+          <p><span data-econ="prizePoolShare">75</span>% of every battle fee and <span data-econ="storePoolPct">60</span>% of every PokéStore purchase go into the pool. Every <span data-econ="seasonHours">24</span> hours it pays the season's top 3 by points — 50 / 30 / 20 % — and points reset. Catching, winning and staking all count. The rest of the fee stays in the vault as treasury; it is the only <span data-cfg="ticker">$POKEMON</span> the arena keeps.</p>
         </section>
         <section>
           <h4>10 · Deposit &amp; withdraw</h4>
@@ -328,6 +340,17 @@
       <!-- filled at runtime from the on-page Docs section (#docs-grid) so there is one source of truth -->
       <div class="guide-grid" id="guide-body"></div>
       <p class="muted small">Chat: <kbd>Enter</kbd> · Rematch: press <kbd>Space</kbd> near the same trainer · Run from an encounter with B / Run · Full details and live burn stats in <a href="#docs" data-close>Docs</a>.</p>
+    </div>
+  </div>
+
+  <!-- Pokédex -->
+  <div class="modal hidden" id="modal-dex" role="dialog" aria-modal="true">
+    <div class="modal-card dex">
+      <button class="modal-close" data-close aria-label="Close">×</button>
+      <h3>Pokédex</h3>
+      <p class="muted" id="dex-summary">0 of 33 seen · 0 caught</p>
+      <div class="dex-grid" id="dex-grid"></div>
+      <p class="muted small">Seen = met in the grass or across the battlefield (silhouette). Caught = in your party at some point (full entry). Your Pokédex is saved with your account.</p>
     </div>
   </div>
 
