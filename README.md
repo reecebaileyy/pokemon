@@ -1,80 +1,86 @@
-# POKÉCTO — Community Takeover site + multiplayer arena
+# $POKEMON — community takeover site + multiplayer arena
 
-A Pokémon-inspired memecoin landing page for a CTO'd (community take over) token, with a
-built-in **real-time multiplayer mini-game** ("CTO Arena") where everyone on the page shares
-one world: walk around, catch wild mons in tall grass, and battle other trainers.
+Landing page for the `$POKEMON` community-takeover token on Solana, with **live on-chain metrics**,
+a **native candlestick chart**, and a **real-time multiplayer Gen-1 Pokémon arena** that every visitor
+shares (catch, battle, evolve).
 
-Everything is original pixel art defined as data (`public/sprites.js`) — no ripped Nintendo assets.
-
-## Run it
+## Run
 
 ```bash
 npm install
 npm start          # http://localhost:3000
 ```
 
-`PORT=8080 npm start` to change the port. `npm run dev` restarts on file changes.
+`PORT=8080 npm start` changes the port. `npm run dev` restarts on file changes.
+Open two browser tabs to see multiplayer.
 
-Open the URL in two browser tabs (or two devices) to see multiplayer working.
+## Live data
 
-## Rebrand it
+The server aggregates four free sources for the mint in `public/config.js` and caches them
+(30 s metrics, 60 s candles) so visitors never hit third-party rate limits:
 
-Edit **`public/config.js`** only:
+| Endpoint | Source | Gives |
+| --- | --- | --- |
+| `/api/token` | DexScreener | price, market cap, liquidity, volume, 24h change, buys/sells, pair, logo |
+| | RugCheck | holder count, LP locked %, risk score, top-10 concentration |
+| | pump.fun | launch time, bonded status, creator/CTO address |
+| | Solana RPC | supply, mint authority, freeze authority (on-chain truth) |
+| `/api/chart?tf=5m\|15m\|1h\|4h` | GeckoTerminal | OHLCV candles for the deepest pair |
+| `/api/stats` | arena | players online, leaderboard, hall of fame |
 
-| Key | What it drives |
-| --- | --- |
-| `name`, `ticker`, `tagline`, `chain` | Every place the brand appears |
-| `contract` | The CA box + copy button |
-| `links.*` | Buy / chart / socials buttons (empty string hides one) |
-| `stats.marketCap`, `holders` | Hero counters and the evolution-roadmap progress bar |
-| `tokenomics` | Donut chart + stat cards |
-| `timeline` | The CTO story |
-| `milestones` | Evolution-chain roadmap (market-cap targets) |
-| `team`, `howToBuy`, `marquee` | Gym leaders, buy steps, scrolling ticker |
+Env: `TOKEN_MINT` overrides the config mint; `SOLANA_RPC` swaps the RPC (use Helius/QuickNode if the
+public RPC rate-limits you).
 
-Colours live at the top of `public/style.css` (`--red`, `--yellow`, `--blue`, …).
+## Rebrand
 
-## The game
+Edit **`public/config.js`**: name, ticker, contract, links (buy/chart/X/Telegram/pump.fun), fallback
+stats, timeline copy, evolution milestones (`dex` numbers + market-cap targets). Colours are the
+CSS variables at the top of `public/style.css`.
+
+## Arena
 
 | Action | Desktop | Mobile |
 | --- | --- | --- |
-| Move | WASD / arrows | On-screen D-pad |
-| Chat | Enter, type, Enter | Tap the chat box |
-| Challenge nearby trainer / throw ball / accept challenge | Space or E | ⚔ button |
+| Move | WASD / arrows | D-pad |
+| Throw ball / accept challenge / battle nearest trainer | Space or E | ● button |
+| Chat | Enter, type, Enter | tap the box |
 
-- **Wild mons** spawn in tall grass. Step on one to start an encounter. Stop the moving cursor
-  in the green zone (gold = perfect) for the best catch odds. Three balls per encounter.
-- **Battles** are turn-based with a type chart (fire > grass > water > fire, electric > water,
-  rock > fire, etc.). Both players pick a move; the server resolves speed, accuracy, crits and
-  STAB. Winner +25 pts, loser +5.
-- **Levels** rise with catches and wins and boost HP/damage. Switch your active mon in the
-  Party panel.
-- **Leaderboard** is live; **Hall of Fame** persists to `data/hall-of-fame.json`.
-- Moonwhale is legendary (1 in ~39 spawns, 15% base catch rate, 100 pts).
+- Starters: Bulbasaur, Charmander, Squirtle, Pikachu. 19 wild Gen-1 species spawn in tall grass
+  (rarity-weighted; Mewtwo/Mew legendary, 1/32 shiny for triple points).
+- Catching is a timing minigame (three balls, faster each miss). Party holds six.
+- Battles are turn-based with the full 18-type chart, STAB, crits, priority moves, immunities.
+  Winner +25 pts, loser +5. 25 s turn timer, forfeit and disconnect handled.
+- Level = 1 + catches/2 + wins/2. Starters, Magikarp and Eevee **evolve** at level thresholds
+  (Charmander → Charmeleon → Charizard, Eevee → random Eeveelution).
+- Leaderboard is live; hall of fame persists to `data/hall-of-fame.json`.
+- All game logic is server-authoritative (`server.js`): clients only send intents.
 
-All game logic is authoritative on the server (`server.js`): movement, encounters, catch rolls,
-damage, rate limits and input sanitising. Clients only send intents.
+Sprites, animated battle sprites, artwork and cries are bundled in `public/assets/pokemon`
+(fetched once from PokeAPI with `npm run assets`).
 
 ## Deploy
 
-It's a single Node process serving static files + WebSockets, so any Node host works
-(Railway, Render, Fly.io, a VPS behind nginx/Caddy with WebSocket proxying). Put it behind
-HTTPS and the client automatically switches to `wss://`.
+Single Node process serving static files + WebSockets. `render.yaml` is included — one click at
+https://render.com/deploy?repo=https://github.com/reecebaileyy/pokemon — or use the `Dockerfile`
+on Railway / Fly / any VPS. The client switches to `wss://` automatically behind HTTPS.
+Render's free tier sleeps after 15 min idle; upgrade to Starter for always-on.
 
 ## Files
 
 ```
-server.js            HTTP static server + WebSocket game server
-public/index.html    Landing page + arena markup
-public/style.css     Styles (Pokédex red/yellow/blue theme, responsive)
-public/config.js     ← edit this to rebrand
-public/sprites.js    Creature data: pixel art, types, moves, type chart (shared client/server)
-public/main.js       Landing interactivity: hero ball, confetti, chart, roadmap, quiz, cries
-public/game.js       Game client: rendering, input, catch minigame, battle UI, chat
-data/                Hall-of-fame persistence (auto-created)
+server.js              static server · metrics/chart API · WebSocket game server
+public/index.html      page
+public/style.css       styles
+public/main.js         metrics, candlestick chart, proof tiles, roadmap, links
+public/game.js         arena client (canvas overworld, catch, battle, evolution, chat)
+public/pokedex.js      Gen-1 roster, moves, type chart, asset paths (shared with server)
+public/sprites.js      pixel trainer + Poké Ball for the overworld
+public/config.js       ← edit to rebrand
+public/assets/pokemon  sprites · anim · shiny · art · cries
+scripts/fetch-assets.js
 ```
 
 ## Disclaimer
 
-Fan-made. Not affiliated with, endorsed by, or connected to Nintendo, Game Freak, Creatures Inc.
-or The Pokémon Company. Memecoins are extremely risky.
+Fan project. Not affiliated with Nintendo, Game Freak, Creatures Inc. or The Pokémon Company;
+Pokémon names and sprites are their property. Memecoins are extremely risky.

@@ -1,311 +1,231 @@
 /* ============================================================
-   Landing page interactivity (config binding, hero ball,
-   confetti, tokenomics chart, evolution roadmap, pokedex,
-   quiz, reveal-on-scroll). The game lives in game.js.
+   Site: config binding, live metrics, native candlestick chart,
+   on-chain proof, evolution roadmap, community links.
+   The arena lives in game.js.
    ============================================================ */
 (function () {
   const C = window.SITE_CONFIG;
-  const P = window.PokeData;
+  const D = window.Pokedex;
   const $ = id => document.getElementById(id);
-  const fmtUsd = n => n >= 1e9 ? '$' + (n / 1e9).toFixed(2) + 'B' : n >= 1e6 ? '$' + (n / 1e6).toFixed(2).replace(/\.?0+$/, '') + 'M' : n >= 1e3 ? '$' + Math.round(n / 1e3) + 'K' : '$' + n;
-  const fmtNum = n => n.toLocaleString('en-US');
-  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const fmtUsd = n => n == null || isNaN(n) ? '—' : n >= 1e9 ? '$' + (n / 1e9).toFixed(2) + 'B' : n >= 1e6 ? '$' + (n / 1e6).toFixed(2).replace(/\.?0+$/, '') + 'M' : n >= 1e3 ? '$' + (n / 1e3).toFixed(n >= 1e5 ? 0 : 1).replace(/\.0$/, '') + 'K' : '$' + Math.round(n);
+  const fmtNum = n => n == null || isNaN(n) ? '—' : Math.round(n).toLocaleString('en-US');
+  const fmtPrice = p => p == null || isNaN(p) ? '—' : '$' + (p < 1 ? Number(p.toPrecision(4)).toString() : p.toFixed(2));
+  const fmtPct = v => v == null || isNaN(v) ? '—' : (v >= 0 ? '+' : '') + Number(v).toFixed(1) + '%';
+  const dirCls = v => v == null || isNaN(v) ? '' : v >= 0 ? 'up' : 'down';
+  const ageOf = ts => { const h = Math.max(0, (Date.now() - ts) / 36e5); return h < 1 ? `${Math.round(h * 60)}m` : h < 48 ? `${Math.round(h)}h` : `${Math.round(h / 24)}d`; };
 
   /* ---------- Config binding ---------- */
-  document.querySelectorAll('[data-cfg]').forEach(el => {
-    const key = el.getAttribute('data-cfg');
-    if (C[key] != null) el.textContent = C[key];
-  });
-  document.title = `${C.name} — Community Takeover · Gotta Pump ’Em All`;
+  document.querySelectorAll('[data-cfg]').forEach(el => { const k = el.getAttribute('data-cfg'); if (C[k] != null) el.textContent = C[k]; });
+  document.title = `${C.ticker} — community takeover on ${C.chain}`;
   $('year').textContent = new Date().getFullYear();
-
   const setLink = (id, url) => { const el = $(id); if (!el) return; if (url) el.href = url; else el.style.display = 'none'; };
-  setLink('buy-btn', C.links.buy);
-  setLink('nav-buy', C.links.buy);
-  setLink('chart-btn', C.links.chart);
-
+  setLink('buy-btn', C.links.buy); setLink('nav-buy', C.links.buy); setLink('chart-btn', C.links.chart); setLink('chart-link', C.links.chart);
   $('contract-address').textContent = C.contract;
   $('copy-ca').addEventListener('click', async () => {
-    try {
-      await navigator.clipboard.writeText(C.contract);
-      $('copy-ca').textContent = 'Copied!';
-      confetti(window.innerWidth / 2, 120, 40);
-      setTimeout(() => { $('copy-ca').textContent = 'Copy'; }, 1500);
-    } catch (e) {
-      const r = document.createRange(); r.selectNode($('contract-address'));
-      const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
-    }
+    try { await navigator.clipboard.writeText(C.contract); $('copy-ca').textContent = 'Copied'; setTimeout(() => { $('copy-ca').textContent = 'Copy'; }, 1400); }
+    catch (e) { const r = document.createRange(); r.selectNode($('contract-address')); const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r); }
   });
 
-  /* ---------- Hero stats (count-up) ---------- */
-  function countUp(el, target, fmt, ms) {
-    const start = performance.now();
-    const step = t => {
-      const k = Math.min(1, (t - start) / ms);
-      const eased = 1 - Math.pow(1 - k, 3);
-      el.textContent = fmt(Math.round(target * eased));
-      if (k < 1) requestAnimationFrame(step);
-    };
-    requestAnimationFrame(step);
-  }
-  countUp($('stat-mcap'), C.stats.marketCap, fmtUsd, 1600);
-  countUp($('stat-holders'), C.stats.holders, fmtNum, 1600);
-
-  /* ---------- Marquee ---------- */
-  const track = $('marquee');
-  const items = C.marquee.concat(C.marquee);
-  track.innerHTML = items.map(m => `<span>${esc(m)}</span>`).join('');
-
-  /* ---------- Floating sprites in the hero ---------- */
-  (function heroSprites() {
-    const wrap = $('hero-sprites');
-    const spots = [
-      { x: 4, y: 12, s: 4, dur: 9 }, { x: 88, y: 8, s: 5, dur: 11 }, { x: 70, y: 70, s: 4, dur: 8 },
-      { x: 20, y: 78, s: 3, dur: 10 }, { x: 50, y: 4, s: 3, dur: 12 }, { x: 92, y: 55, s: 4, dur: 9 }, { x: 36, y: 60, s: 3, dur: 13 }
-    ];
-    P.SPECIES.forEach((sp, i) => {
-      const spot = spots[i % spots.length];
-      const cv = P.spriteToCanvas(sp.pixels, spot.s);
-      cv.style.left = spot.x + '%'; cv.style.top = spot.y + '%';
-      cv.style.setProperty('--dur', spot.dur + 's');
-      cv.style.animationDelay = (-i * 1.7) + 's';
-      wrap.appendChild(cv);
-    });
-  })();
-
-  /* ---------- Confetti / FX canvas ---------- */
-  const fx = $('fx-canvas');
-  const fctx = fx.getContext('2d');
-  let parts = [];
-  function sizeFx() { fx.width = window.innerWidth; fx.height = window.innerHeight; }
+  /* ---------- Confetti (used by the arena) ---------- */
+  const fx = $('fx-canvas'), fctx = fx.getContext('2d');
+  let parts = [], fxRunning = false;
+  const sizeFx = () => { fx.width = window.innerWidth; fx.height = window.innerHeight; };
   sizeFx(); window.addEventListener('resize', sizeFx);
-  const COLORS = ['#ffcb05', '#e3350d', '#3b4cca', '#22c55e', '#ffffff', '#f97316'];
-  function confetti(x, y, n, opts) {
+  const COLORS = ['#ffcb05', '#f4f4f5', '#34d399', '#6390F0', '#EE8130'];
+  function confetti(x, y, n) {
     for (let i = 0; i < n; i++) {
-      const a = Math.random() * Math.PI * 2, sp = 3 + Math.random() * 7;
-      parts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 4, g: 0.22, life: 70 + Math.random() * 40, size: 4 + Math.random() * 6, c: COLORS[i % COLORS.length], rot: Math.random() * 6, vr: (Math.random() - 0.5) * 0.4, shape: (opts && opts.shape) || (Math.random() < 0.5 ? 'rect' : 'circle') });
+      const a = Math.random() * Math.PI * 2, sp = 3 + Math.random() * 6;
+      parts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 3, life: 60 + Math.random() * 30, size: 3 + Math.random() * 4, c: COLORS[i % COLORS.length] });
     }
     if (!fxRunning) loopFx();
   }
-  let fxRunning = false;
   function loopFx() {
     fxRunning = true;
     fctx.clearRect(0, 0, fx.width, fx.height);
     parts = parts.filter(p => p.life > 0);
-    for (const p of parts) {
-      p.x += p.vx; p.y += p.vy; p.vy += p.g; p.vx *= 0.99; p.life--; p.rot += p.vr;
-      fctx.save(); fctx.translate(p.x, p.y); fctx.rotate(p.rot); fctx.globalAlpha = Math.min(1, p.life / 30); fctx.fillStyle = p.c;
-      if (p.shape === 'rect') fctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
-      else { fctx.beginPath(); fctx.arc(0, 0, p.size / 2, 0, Math.PI * 2); fctx.fill(); }
-      fctx.restore();
-    }
+    for (const p of parts) { p.x += p.vx; p.y += p.vy; p.vy += 0.2; p.vx *= 0.99; p.life--; fctx.globalAlpha = Math.min(1, p.life / 25); fctx.fillStyle = p.c; fctx.fillRect(p.x, p.y, p.size, p.size); }
+    fctx.globalAlpha = 1;
     if (parts.length) requestAnimationFrame(loopFx); else { fxRunning = false; fctx.clearRect(0, 0, fx.width, fx.height); }
   }
 
-  /* ---------- Cursor trail (desktop only, throttled) ---------- */
-  (function trail() {
-    if (window.matchMedia('(pointer: coarse)').matches) return;
-    const wrap = $('cursor-trail'); let last = 0;
-    window.addEventListener('mousemove', e => {
-      const t = performance.now(); if (t - last < 45) return; last = t;
-      const s = document.createElement('span'); s.style.left = e.clientX + 'px'; s.style.top = e.clientY + 'px';
-      wrap.appendChild(s); setTimeout(() => s.remove(), 700);
-    }, { passive: true });
-  })();
-
-  /* ---------- Hero Pokéball ---------- */
-  (function heroBall() {
-    const ball = $('hero-ball'), hint = $('ball-hint'), catches = $('ball-catches');
-    let busy = false, total = 0;
-    const lines = [`Gotcha! ${C.ticker} was caught!`, 'Critical catch! Diamond hands confirmed.', `${C.ticker} refuses to be rugged again.`, 'The ball shakes… once… twice… three times!', 'You caught the whole community.'];
-    const go = () => {
-      if (busy) return; busy = true;
-      ball.classList.remove('caught', 'open');
-      ball.classList.add('shake');
-      hint.textContent = 'Shaking…';
-      setTimeout(() => {
-        ball.classList.remove('shake');
-        ball.classList.add('caught');
-        const r = ball.getBoundingClientRect();
-        confetti(r.left + r.width / 2, r.top + r.height / 2, 120);
-        total++;
-        hint.textContent = lines[Math.floor(Math.random() * lines.length)];
-        catches.textContent = `CAUGHT x${total}`;
-        playCry('embercub');
-        setTimeout(() => { busy = false; ball.classList.remove('caught'); hint.textContent = 'Throw again?'; }, 1500);
-      }, 1500);
-    };
-    ball.addEventListener('click', go);
-    ball.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
-  })();
-
-  /* ---------- Timeline ---------- */
-  $('timeline').innerHTML = C.timeline.map((t, i) => `
-    <div class="tl-item reveal ${i < C.timeline.length - 1 ? 'done' : ''}">
-      <div class="tl-date">${esc(t.date)}</div>
-      <h3>${esc(t.title)}</h3>
-      <p>${esc(t.text)}</p>
-    </div>`).join('');
-
-  /* ---------- Tokenomics ---------- */
-  (function tokenomics() {
-    const cv = $('tokenomics-chart'), ctx = cv.getContext('2d');
-    const dist = C.tokenomics.distribution;
-    $('tokenomics-legend').innerHTML = dist.map(d => `<li><span class="sw" style="background:${d.color}"></span>${esc(d.label)}<span class="pct">${d.pct}%</span></li>`).join('');
-    const tk = C.tokenomics;
-    const cards = [
-      ['Total supply', tk.totalSupply, '🧬'], ['Buy / sell tax', `${tk.buyTax} / ${tk.sellTax}`, '🧾'],
-      ['Liquidity', tk.liquidity, '🔥'], ['Mint authority', tk.mintAuthority, '🔒'],
-      ['Freeze authority', tk.freezeAuthority, '❄️'], ['Chain', C.chain, '⛓️']
-    ];
-    $('tokenomics-cards').innerHTML = cards.map(([k, v, ic]) => `<div class="stat-card reveal"><span class="ic">${ic}</span><div class="k">${esc(k)}</div><div class="v">${esc(v)}</div></div>`).join('');
-
-    let drawn = false;
-    function draw(progress) {
-      const W = cv.width, H = cv.height, cx = W / 2, cy = H / 2, R = W * 0.42, r = W * 0.27;
-      ctx.clearRect(0, 0, W, H);
-      let a = -Math.PI / 2;
-      const totalAngle = Math.PI * 2 * progress;
-      for (const d of dist) {
-        const span = Math.PI * 2 * (d.pct / 100);
-        const end = Math.min(a + span, -Math.PI / 2 + totalAngle);
-        if (end <= a) break;
-        ctx.beginPath(); ctx.arc(cx, cy, R, a, end); ctx.arc(cx, cy, r, end, a, true); ctx.closePath();
-        ctx.fillStyle = d.color; ctx.fill(); ctx.lineWidth = 4; ctx.strokeStyle = '#1b1b2f'; ctx.stroke();
-        a += span;
-      }
-    }
-    function animate() {
-      if (drawn) return; drawn = true;
-      const t0 = performance.now();
-      const step = t => { const k = Math.min(1, (t - t0) / 1400); draw(1 - Math.pow(1 - k, 3)); if (k < 1) requestAnimationFrame(step); };
-      requestAnimationFrame(step);
-    }
-    new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) animate(); }, { threshold: 0.3 }).observe(cv);
-  })();
-
-  /* ---------- Evolution roadmap ---------- */
-  (function evolution() {
-    const ms = C.milestones, cur = C.stats.marketCap;
-    let done = ms.filter(m => cur >= m.mcap).length;
-    const next = ms[done];
-    const prevMcap = done > 0 ? ms[done - 1].mcap : 0;
-    const partial = next ? Math.max(0, Math.min(1, (cur - prevMcap) / (next.mcap - prevMcap))) : 0;
-    const progress = next ? (done + partial) / ms.length : 1;
-    $('evo-chain').innerHTML = ms.map((m, i) => {
-      const cls = i < done ? 'done' : i === done ? 'current' : 'locked';
-      const tag = i < done ? 'EVOLVED' : i === done ? 'EVOLVING…' : 'LOCKED';
-      return `<div class="evo-stage reveal ${cls}" data-species="${m.species}"><span class="evo-tag">${tag}</span><div class="evo-art"></div><h3>${esc(m.label)}</h3><div class="evo-mcap">${fmtUsd(m.mcap)} MCAP</div><p class="evo-perk">${esc(m.perk)}</p>${i < ms.length - 1 ? '<span class="evo-arrow">▶</span>' : ''}</div>`;
-    }).join('');
-    document.querySelectorAll('.evo-stage').forEach(el => {
-      const sp = P.SPECIES_BY_ID[el.dataset.species] || P.SPECIES[0];
-      el.querySelector('.evo-art').appendChild(P.spriteToCanvas(sp.pixels, 6));
-    });
-    const label = next ? `${fmtUsd(cur)} market cap · ${Math.round(partial * 100)}% of the way to <b>${esc(next.label)}</b> (${fmtUsd(next.mcap)})` : `${fmtUsd(cur)} market cap · fully evolved. Legendary status reached.`;
-    $('evo-progress-label').innerHTML = label;
-    new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) $('evo-progress').style.width = (progress * 100).toFixed(1) + '%'; }, { threshold: 0.4 }).observe($('evo-progress'));
-  })();
-
-  /* ---------- Creature cries (Web Audio, no assets) ---------- */
-  let actx = null;
-  function playCry(speciesId) {
-    try {
-      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
-      if (actx.state === 'suspended') actx.resume();
-      const sp = P.SPECIES_BY_ID[speciesId] || P.SPECIES[0];
-      const waves = { fire: 'sawtooth', water: 'sine', grass: 'triangle', electric: 'square', rock: 'square', ghost: 'sine', ice: 'triangle' };
-      let hash = 0; for (const ch of sp.name) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
-      const base = 180 + (hash % 400);
-      const t = actx.currentTime;
-      const osc = actx.createOscillator(), gain = actx.createGain();
-      osc.type = waves[sp.type] || 'square';
-      osc.frequency.setValueAtTime(base, t);
-      osc.frequency.exponentialRampToValueAtTime(base * (sp.type === 'rock' ? 0.5 : 2.2), t + 0.12);
-      osc.frequency.exponentialRampToValueAtTime(base * 0.8, t + 0.32);
-      gain.gain.setValueAtTime(0.0001, t);
-      gain.gain.exponentialRampToValueAtTime(0.18, t + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.38);
-      osc.connect(gain).connect(actx.destination);
-      osc.start(t); osc.stop(t + 0.4);
-    } catch (e) { /* audio blocked */ }
+  /* ---------- Sparkline ---------- */
+  function drawSparkline(closes) {
+    const cv = $('sparkline'); if (!cv || closes.length < 2) return;
+    const dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
+    cv.width = W * dpr; cv.height = H * dpr;
+    const c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, W, H);
+    const lo = Math.min(...closes), hi = Math.max(...closes), span = hi - lo || 1;
+    const up = closes[closes.length - 1] >= closes[0];
+    const col = up ? '#34d399' : '#f87171';
+    const pts = closes.map((v, i) => [i / (closes.length - 1) * W, 4 + (1 - (v - lo) / span) * (H - 8)]);
+    const g = c.createLinearGradient(0, 0, 0, H); g.addColorStop(0, up ? 'rgba(52,211,153,0.25)' : 'rgba(248,113,113,0.25)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+    c.beginPath(); c.moveTo(pts[0][0], H); pts.forEach(p => c.lineTo(p[0], p[1])); c.lineTo(W, H); c.closePath(); c.fillStyle = g; c.fill();
+    c.beginPath(); pts.forEach((p, i) => i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1])); c.strokeStyle = col; c.lineWidth = 1.5; c.lineJoin = 'round'; c.stroke();
   }
 
-  /* ---------- Pokédex grid ---------- */
-  $('dex-grid').innerHTML = P.SPECIES.map((sp, i) => {
-    const tcol = P.TYPES[sp.type].color;
-    return `<div class="dex-card reveal" data-id="${sp.id}" style="--type:${tcol}"><span class="rarity ${sp.rarity}">${sp.rarity.toUpperCase()}</span><div class="art"></div><h3>#00${i + 1} ${esc(sp.name)}</h3><span class="type-badge">${P.TYPES[sp.type].icon} ${sp.type}</span><p>${esc(sp.dex)}</p></div>`;
-  }).join('');
-  document.querySelectorAll('.dex-card').forEach(el => {
-    const sp = P.SPECIES_BY_ID[el.dataset.id];
-    el.querySelector('.art').appendChild(P.spriteToCanvas(sp.pixels, 6));
-    el.addEventListener('click', () => {
-      playCry(sp.id);
-      el.classList.remove('cry'); void el.offsetWidth; el.classList.add('cry');
-      const r = el.getBoundingClientRect();
-      confetti(r.left + r.width / 2, r.top + r.height / 3, 18, { shape: 'circle' });
-    });
+  /* ---------- Candlestick chart ---------- */
+  const chart = { candles: [], tf: '15m', hover: -1 };
+  const ccv = $('chart-canvas'), cctx = ccv.getContext('2d');
+  function layout() {
+    const W = ccv.clientWidth, H = ccv.clientHeight;
+    return { W, H, L: 10, R: 74, T: 14, B: 26, volH: Math.round((H - 40) * 0.16) };
+  }
+  function drawChart() {
+    const dpr = window.devicePixelRatio || 1;
+    const { W, H, L, R, T, B, volH } = layout();
+    ccv.width = W * dpr; ccv.height = H * dpr;
+    cctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    cctx.clearRect(0, 0, W, H);
+    const cs = chart.candles, n = cs.length;
+    $('chart-empty').classList.toggle('hidden', n > 0);
+    if (!n) return;
+    const priceH = H - T - B - volH - 8;
+    // Scale on candle bodies (opens/closes) so a single launch wick can't flatten the whole chart; wicks are clipped.
+    let bodyLo = Infinity, bodyHi = -Infinity, maxV = 0;
+    for (const c of cs) { bodyLo = Math.min(bodyLo, c[1], c[4]); bodyHi = Math.max(bodyHi, c[1], c[4]); maxV = Math.max(maxV, c[5] || 0); }
+    let lo = bodyLo, hi = bodyHi;
+    for (const c of cs) { if (c[2] <= bodyHi * 1.35) hi = Math.max(hi, c[2]); if (c[3] >= bodyLo * 0.65) lo = Math.min(lo, c[3]); }
+    const pad = (hi - lo) * 0.06 || hi * 0.02; lo = Math.max(0, lo - pad); hi += pad;
+    const plotW = W - L - R, xw = plotW / n;
+    const y = p => T + (hi - p) / (hi - lo) * priceH;
+    const x = i => L + i * xw + xw / 2;
+    // grid
+    cctx.font = '11px "JetBrains Mono", ui-monospace, monospace'; cctx.textBaseline = 'middle'; cctx.textAlign = 'left';
+    for (let k = 0; k <= 4; k++) {
+      const p = lo + (hi - lo) * k / 4, yy = y(p);
+      cctx.strokeStyle = 'rgba(255,255,255,0.06)'; cctx.beginPath(); cctx.moveTo(L, yy); cctx.lineTo(W - R + 4, yy); cctx.stroke();
+      cctx.fillStyle = '#8b8b95'; cctx.fillText(fmtPrice(p).replace('$', ''), W - R + 10, yy);
+    }
+    // x labels
+    cctx.textAlign = 'center'; cctx.textBaseline = 'alphabetic';
+    const step = Math.max(1, Math.ceil(n / Math.max(3, Math.floor(plotW / 110))));
+    const spanMs = cs[n - 1][0] - cs[0][0];
+    for (let i = 0; i < n; i += step) {
+      const d = new Date(cs[i][0]);
+      const label = spanMs > 36e5 * 36 ? d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      cctx.fillStyle = '#8b8b95'; cctx.fillText(label, x(i), H - 8);
+    }
+    // volume
+    const volTop = T + priceH + 8;
+    for (let i = 0; i < n; i++) {
+      const c = cs[i], up = c[4] >= c[1], h = maxV ? (c[5] / maxV) * volH : 0;
+      cctx.fillStyle = up ? 'rgba(52,211,153,0.28)' : 'rgba(248,113,113,0.28)';
+      cctx.fillRect(x(i) - Math.max(1, xw * 0.35), volTop + volH - h, Math.max(2, xw * 0.7), h);
+    }
+    // candles
+    for (let i = 0; i < n; i++) {
+      const c = cs[i], up = c[4] >= c[1], col = up ? '#34d399' : '#f87171', cx = x(i);
+      cctx.strokeStyle = col; cctx.lineWidth = 1;
+      cctx.beginPath(); cctx.moveTo(cx, Math.max(T, y(c[2]))); cctx.lineTo(cx, Math.min(T + priceH, y(c[3]))); cctx.stroke();
+      const top = y(Math.max(c[1], c[4])), bot = y(Math.min(c[1], c[4]));
+      cctx.fillStyle = col; cctx.fillRect(cx - Math.max(1, xw * 0.35), top, Math.max(2, xw * 0.7), Math.max(1, bot - top));
+    }
+    // last price line
+    const last = cs[n - 1][4], ly = y(last);
+    cctx.setLineDash([3, 3]); cctx.strokeStyle = 'rgba(255,203,5,0.6)'; cctx.beginPath(); cctx.moveTo(L, ly); cctx.lineTo(W - R + 4, ly); cctx.stroke(); cctx.setLineDash([]);
+    const tag = fmtPrice(last).replace('$', ''), tw = cctx.measureText(tag).width + 10;
+    cctx.fillStyle = '#ffcb05'; cctx.fillRect(W - R + 6, ly - 9, tw, 18);
+    cctx.fillStyle = '#1a1400'; cctx.textAlign = 'left'; cctx.textBaseline = 'middle'; cctx.fillText(tag, W - R + 11, ly);
+    // hover
+    if (chart.hover >= 0 && chart.hover < n) {
+      const i = chart.hover, cx = x(i);
+      cctx.strokeStyle = 'rgba(255,255,255,0.25)'; cctx.setLineDash([2, 3]); cctx.beginPath(); cctx.moveTo(cx, T); cctx.lineTo(cx, H - B); cctx.stroke(); cctx.setLineDash([]);
+      const c = cs[i], d = new Date(c[0]);
+      const chg = ((c[4] - c[1]) / c[1]) * 100;
+      $('chart-tooltip').innerHTML = `<div>${d.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div><div><b>O</b>${fmtPrice(c[1])} <b>H</b>${fmtPrice(c[2])}</div><div><b>L</b>${fmtPrice(c[3])} <b>C</b>${fmtPrice(c[4])}</div><div><b>Vol</b>${fmtUsd(c[5])} <span class="${dirCls(chg)}">${fmtPct(chg)}</span></div>`;
+      $('chart-tooltip').classList.remove('hidden');
+    } else $('chart-tooltip').classList.add('hidden');
+  }
+  ccv.addEventListener('mousemove', e => {
+    const { L, R, W } = layout(); const n = chart.candles.length; if (!n) return;
+    const r = ccv.getBoundingClientRect(); const px = e.clientX - r.left;
+    const i = Math.floor((px - L) / ((W - L - R) / n));
+    chart.hover = i >= 0 && i < n ? i : -1; drawChart();
   });
+  ccv.addEventListener('mouseleave', () => { chart.hover = -1; drawChart(); });
+  window.addEventListener('resize', () => { drawChart(); if (chart.candles.length) drawSparkline(chart.candles.slice(-48).map(c => c[4])); });
+  async function loadChart() {
+    try {
+      const r = await fetch(`/api/chart?tf=${chart.tf}`, { cache: 'no-store' });
+      const j = await r.json();
+      chart.candles = j.candles || [];
+      if (!chart.candles.length) $('chart-empty').textContent = j.error ? 'Chart unavailable' : 'No candles yet';
+      drawChart();
+      if (chart.tf === '15m' || chart.tf === '5m') drawSparkline(chart.candles.slice(-48).map(c => c[4]));
+    } catch (e) { $('chart-empty').textContent = 'Chart unavailable'; }
+  }
+  $('chart-tabs').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+    $('chart-tabs').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+    chart.tf = b.dataset.tf; chart.candles = []; $('chart-empty').textContent = 'Loading…'; drawChart(); loadChart();
+  }));
+  loadChart(); setInterval(loadChart, 60000);
 
-  /* ---------- Who's that mon? quiz ---------- */
-  (function quiz() {
-    const cv = $('quiz-canvas'), ctx = cv.getContext('2d'); ctx.imageSmoothingEnabled = false;
-    const opts = $('quiz-options'), result = $('quiz-result'), streakEl = $('quiz-streak');
-    let answer = null, streak = 0, locked = false;
-    function next() {
-      locked = false;
-      answer = P.SPECIES[Math.floor(Math.random() * P.SPECIES.length)];
-      const names = P.SPECIES.filter(s => s !== answer).sort(() => Math.random() - 0.5).slice(0, 3).concat(answer).sort(() => Math.random() - 0.5);
-      ctx.clearRect(0, 0, cv.width, cv.height);
-      ctx.drawImage(P.silhouetteToCanvas(answer.pixels, 12, '#1b1b2f'), 0, 0);
-      opts.innerHTML = names.map(s => `<button class="btn btn-sm" data-id="${s.id}">${esc(s.name)}</button>`).join('');
-      result.textContent = 'Who’s that mon?';
-      opts.querySelectorAll('button').forEach(b => b.addEventListener('click', () => guess(b)));
+  /* ---------- Live metrics ---------- */
+  let first = true;
+  function markOffline(msg) { $('live-dot').classList.add('off'); $('updated').textContent = msg || 'live feed offline'; }
+  function applyMetrics(m) {
+    if (!m || m.error || m.marketCap == null) return markOffline(m && m.error ? 'feed error' : undefined);
+    $('live-dot').classList.toggle('off', !!m.stale);
+    $('updated').textContent = (m.stale ? 'stale · ' : 'live · ') + new Date(m.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    if (m.symbol) { $('tok-name').textContent = '$' + m.symbol; }
+    if (m.imageUrl) { $('tok-logo').src = m.imageUrl; $('tok-logo-nav').src = m.imageUrl; $('tok-logo').referrerPolicy = 'no-referrer'; }
+    $('stat-price').textContent = fmtPrice(m.priceUsd);
+    const ch = m.priceChange && m.priceChange.h24;
+    const chip = $('stat-change'); chip.textContent = fmtPct(ch) + ' 24h'; chip.className = 'chip ' + dirCls(ch);
+    $('stat-mcap').textContent = fmtUsd(m.marketCap);
+    $('stat-liq').textContent = fmtUsd(m.liquidityUsd);
+    $('stat-vol').textContent = fmtUsd(m.volume && m.volume.h24);
+    $('stat-holders').textContent = m.holders != null ? fmtNum(m.holders) : '—';
+    // proof row
+    const proofs = [];
+    const rpcOk = m.sources && m.sources.rpc === 'ok';
+    if (rpcOk) {
+      proofs.push([m.mintAuthority ? 'warn' : 'ok', m.mintAuthority ? '!' : '✓', 'Mint authority', m.mintAuthority ? 'Active — supply can grow' : 'Revoked — supply is fixed']);
+      proofs.push([m.freezeAuthority ? 'warn' : 'ok', m.freezeAuthority ? '!' : '✓', 'Freeze authority', m.freezeAuthority ? 'Active' : 'Revoked — wallets can\'t be frozen']);
     }
-    function guess(btn) {
-      if (locked) return; locked = true;
-      const correct = btn.dataset.id === answer.id;
-      ctx.clearRect(0, 0, cv.width, cv.height);
-      ctx.drawImage(P.spriteToCanvas(answer.pixels, 12), 0, 0);
-      btn.classList.add(correct ? 'correct' : 'wrong');
-      if (correct) {
-        streak++; result.textContent = `It’s ${answer.name}! +1 streak`;
-        const r = cv.getBoundingClientRect(); confetti(r.left + r.width / 2, r.top + r.height / 2, 40);
-        playCry(answer.id);
-      } else { streak = 0; result.textContent = `Nope — it was ${answer.name}. Streak reset.`; }
-      streakEl.textContent = streak;
-      setTimeout(next, 1500);
-    }
-    next();
-  })();
+    if (m.lpLockedPct != null) proofs.push([m.lpLockedPct >= 90 ? 'ok' : 'warn', m.lpLockedPct >= 90 ? '✓' : '!', 'Liquidity', `${Math.round(m.lpLockedPct)}% locked${m.dexId ? ' · ' + m.dexId : ''}`]);
+    if (m.rugScore != null) proofs.push([m.rugScore <= 20 ? 'ok' : m.rugScore <= 50 ? 'info' : 'warn', m.rugScore <= 20 ? '✓' : '!', 'RugCheck', `Risk ${m.rugScore}/100 · ${m.risks && m.risks.length ? esc(m.risks.map(r => r.name).join(', ')) : 'no risks flagged'}`]);
+    if (m.creatorBurned) proofs.push(['ok', '✓', 'Creator', 'Rights sent to the incinerator']);
+    if (m.supply) proofs.push(['info', '#', 'Supply', `${fmtNum(m.supply)} ${m.symbol ? '$' + m.symbol : ''}`]);
+    if (m.top10Pct != null) proofs.push([m.top10Pct <= 35 ? 'info' : 'warn', m.top10Pct <= 35 ? '◔' : '!', 'Top 10 holders', `${m.top10Pct.toFixed(1)}% of supply`]);
+    if (m.createdAt) proofs.push(['info', '·', 'Launched', `${ageOf(m.createdAt)} ago${m.bonded ? ' · bonded' : ''}`]);
+    $('proof-grid').innerHTML = proofs.slice(0, 8).map(([cls, ic, k, v]) => `<div class="proof ${cls}"><i>${ic}</i><div><b>${esc(k)}</b><span>${v}</span></div></div>`).join('');
+    renderEvolution(m.marketCap, true);
+    first = false;
+  }
+  async function pollMetrics() {
+    try { const r = await fetch('/api/token', { cache: 'no-store' }); applyMetrics(await r.json()); } catch (e) { markOffline(); }
+  }
+  pollMetrics(); setInterval(pollMetrics, 30000);
 
-  /* ---------- Team / steps / socials ---------- */
-  $('team-grid').innerHTML = C.team.map(t => `<div class="team-card reveal" data-species="${t.species}"><div class="art"></div><div><b>${esc(t.name)}</b><span>${esc(t.role)}</span><span>${esc(t.handle)}</span></div></div>`).join('');
-  document.querySelectorAll('.team-card').forEach(el => el.querySelector('.art').appendChild(P.spriteToCanvas((P.SPECIES_BY_ID[el.dataset.species] || P.SPECIES[0]).pixels, 4)));
+  /* ---------- Evolution roadmap ---------- */
+  function renderEvolution(cur, live) {
+    const ms = C.milestones;
+    const done = ms.filter(m => cur >= m.mcap).length;
+    const next = ms[done];
+    const prev = done > 0 ? ms[done - 1].mcap : 0;
+    const partial = next ? Math.max(0, Math.min(1, (cur - prev) / (next.mcap - prev))) : 1;
+    $('evo-row').innerHTML = ms.map((m, i) => {
+      const cls = i < done ? 'done' : i === done ? 'current' : 'locked';
+      const tag = i < done ? 'reached' : i === done ? 'in progress' : 'locked';
+      const bar = i === done ? `<div class="evo-bar"><i style="width:${(partial * 100).toFixed(1)}%"></i></div>` : '';
+      return `<div class="evo-stage ${cls}"><span class="tag">${tag}</span><img src="${D.assets.art(m.dex)}" alt="${esc(m.label)}"><b>${esc(m.label)}</b><div class="mcap">${fmtUsd(m.mcap)} mcap</div><p>${esc(m.perk)}</p>${bar}</div>`;
+    }).join('');
+    $('evo-note').textContent = next ? `${fmtUsd(cur)} now · ${Math.round(partial * 100)}% of the way to ${next.label} (${fmtUsd(next.mcap)})${live ? '' : ' · last known'}` : `${fmtUsd(cur)} — fully evolved.`;
+  }
+  renderEvolution(C.stats.marketCap, false);
 
-  $('steps').innerHTML = C.howToBuy.map(s => `<div class="step reveal"><h3>${esc(s.title)}</h3><p>${esc(s.text)}</p></div>`).join('');
-
+  /* ---------- Community ---------- */
   const socials = [
-    ['telegram', '✈️', 'Telegram', 'Where the trainers hang out'],
-    ['twitter', '🐦', 'X / Twitter', 'Memes, raids, announcements'],
-    ['dexscreener', '📈', 'DexScreener', 'Live chart & trades'],
-    ['buy', '🛒', `Buy ${C.ticker}`, `Swap on ${C.chain}`],
-    ['community', '🏠', 'Community hub', 'Discord / forum']
+    ['twitter', '𝕏', 'X community', 'Announcements, raids, memes'],
+    ['telegram', '✈', 'Telegram', 'Holder chat'],
+    ['dexscreener', '📈', 'DexScreener', 'Chart and trades'],
+    ['pumpfun', '💊', 'pump.fun', 'Token page'],
+    ['buy', '⇄', 'Jupiter', 'Swap SOL for ' + C.ticker]
   ].filter(([k]) => C.links[k]);
-  $('social-grid').innerHTML = socials.map(([k, ic, name, sub]) => `<a class="social reveal" href="${esc(C.links[k])}" target="_blank" rel="noopener"><span class="ic">${ic}</span><div><span>${esc(name)}</span><small>${esc(sub)}</small></div></a>`).join('');
+  $('social-grid').innerHTML = socials.map(([k, ic, name, sub]) => `<a class="social" href="${esc(C.links[k])}" target="_blank" rel="noopener"><span class="ic">${ic}</span><div><b>${esc(name)}</b><span>${esc(sub)}</span></div></a>`).join('');
 
-  /* ---------- Reveal on scroll ---------- */
-  const io = new IntersectionObserver(entries => {
-    entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
-  }, { threshold: 0.12 });
-  document.querySelectorAll('.reveal').forEach(el => io.observe(el));
-
-  /* ---------- Nav ---------- */
-  $('nav-toggle').addEventListener('click', () => $('nav-links').classList.toggle('open'));
-  $('nav-links').querySelectorAll('a').forEach(a => a.addEventListener('click', () => $('nav-links').classList.remove('open')));
-
-  /* ---------- Shared FX for game.js ---------- */
-  window.SiteFX = {
-    confetti, playCry,
-    setOnline(n) { $('online-count').textContent = n; $('stat-online').textContent = n; }
-  };
+  /* ---------- Shared ---------- */
+  window.SiteFX = { confetti, setOnline(n) { $('online-count').textContent = n; $('arena-online').textContent = n; } };
 })();
