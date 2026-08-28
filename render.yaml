@@ -17,6 +17,12 @@ services:
         value: production
       - key: NODE_VERSION
         value: "22"
+      - key: VAULT_SECRET_KEY   # base58 or JSON-array secret key of the arena vault wallet (set in the dashboard, never commit it)
+        sync: false
+      - key: SOLANA_RPC         # optional: a dedicated RPC (Helius/QuickNode) — the public one rate-limits deposit polling
+        sync: false
+      - key: ADMIN_KEY          # optional: enables GET /api/admin/vault?key=… (vault + ledger summary)
+        sync: false
     disk:
       name: arena-data
       mountPath: /opt/render/project/src/data   # persists data/hall-of-fame.json across deploys

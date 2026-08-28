@@ -110,6 +110,20 @@
   const STARTERS = R.filter(p => p.starter);
   const WILD = R.filter(p => p.wild);
 
+  // Items — bought with PokéCoins (earned by catching and winning). Balls are used in encounters,
+  // everything else is used as a battle turn.
+  const ITEMS = {
+    potion:      { id: 'potion',      name: 'Potion',       kind: 'heal',  amount: 20,   cost: 25,  icon: '🧪', desc: 'Restores 20 HP.' },
+    superpotion: { id: 'superpotion', name: 'Super Potion', kind: 'heal',  amount: 50,   cost: 60,  icon: '🧴', desc: 'Restores 50 HP.' },
+    hyperpotion: { id: 'hyperpotion', name: 'Hyper Potion', kind: 'heal',  amount: 120,  cost: 140, icon: '💊', desc: 'Restores 120 HP.' },
+    fullrestore: { id: 'fullrestore', name: 'Full Restore', kind: 'heal',  amount: 9999, cost: 260, icon: '✨', desc: 'Fully restores HP.' },
+    xattack:     { id: 'xattack',     name: 'X Attack',     kind: 'boost', mult: 1.5, turns: 3, cost: 90, icon: '⚔️', desc: '+50% damage for 3 turns.' },
+    xdefend:     { id: 'xdefend',     name: 'X Defend',     kind: 'guard', mult: 0.7, turns: 3, cost: 90, icon: '🛡️', desc: 'Take 30% less damage for 3 turns.' },
+    greatball:   { id: 'greatball',   name: 'Great Ball',   kind: 'ball',  mult: 1.5, cost: 50,  icon: '🔵', desc: '1.5× catch rate.' },
+    ultraball:   { id: 'ultraball',   name: 'Ultra Ball',   kind: 'ball',  mult: 2.2, cost: 120, icon: '🟡', desc: '2.2× catch rate.' }
+  };
+  const ITEM_LIST = Object.values(ITEMS);
+
   const ASSET = 'assets/pokemon';
   const assets = {
     front: (dex, shiny) => `${ASSET}/${shiny ? 'shiny/' : ''}${dex}.png`,
@@ -119,7 +133,7 @@
     cry: dex => `${ASSET}/cries/${dex}.ogg`
   };
 
-  const Pokedex = { TYPES, TYPE_COLORS, TYPE_CHART, MOVES: M, RARITY, ROSTER: R, BY_DEX, STARTERS, WILD, effectiveness, assets };
+  const Pokedex = { TYPES, TYPE_COLORS, TYPE_CHART, MOVES: M, RARITY, ROSTER: R, BY_DEX, STARTERS, WILD, ITEMS, ITEM_LIST, effectiveness, assets };
   if (typeof module !== 'undefined' && module.exports) module.exports = Pokedex;
   else window.Pokedex = Pokedex;
 })();

@@ -52,6 +52,20 @@ window.SITE_CONFIG = {
     ]
   },
 
+  // Arena economy: staking $POKEMON on battles, the season prize pool, deposits and withdrawals.
+  // Amounts are in whole tokens. Server-side settings; the browser only uses them for display.
+  economy: {
+    stakes: true,             // allow staked battles
+    minStake: 1000,
+    maxStake: 5000000,
+    feePct: 4,                // % of every pot kept as fee
+    prizePoolShare: 75,       // % of the fee that feeds the season prize pool (rest stays in the vault treasury)
+    seasonHours: 24,          // prize pool pays the season's top 3 (50 / 30 / 20 %) every N hours
+    minWithdraw: 1000,
+    maxWithdrawPerDay: 2000000,
+    startingCoins: 100        // PokéCoins for new trainers (buys potions and balls)
+  },
+
   // Fallback numbers, only shown if the live feed is unreachable.
   stats: {
     marketCap: 171000,      // USD

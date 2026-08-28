@@ -58,6 +58,36 @@ CSS variables at the top of `public/style.css`.
 Sprites, animated battle sprites, artwork and cries are bundled in `public/assets/pokemon`
 (fetched once from PokeAPI with `npm run assets`).
 
+## Economy: accounts, staking, prize pool
+
+Everything below is server-authoritative (`server.js` + `wallet.js`), persisted to `data/ledger.json`
+(put `data/` on a persistent disk), and configured in `public/config.js → economy`.
+
+- **Accounts** — two kinds, both with saved party/bag/points/balance and a session token for silent resume:
+  - *Wallet*: Phantom/Solflare signs a nonce message (`Sign in to $POKEMON Arena`). No transaction, no fee.
+  - *Smart wallet*: username + passphrase (scrypt-hashed) — an account that lives inside the arena, for players
+    without a browser wallet.
+- **Deposits** — every account gets its own deposit address derived from the vault key. Send $POKEMON there from any
+  wallet or exchange (or use "Deposit from wallet", which builds the Token-2022 transfer for Phantom to sign).
+  The server polls the deposit accounts of active players, credits confirmed transfers, then sweeps them into the vault.
+- **Withdrawals** — paid from the vault to any Solana address; `minWithdraw` / `maxWithdrawPerDay` apply.
+  The vault needs a little SOL for fees and ATA rent (~0.003 SOL per new recipient).
+- **Staked battles** — set a stake when challenging; both stakes are escrowed at battle start; the winner gets the pot
+  minus `feePct`. Forfeit or disconnect loses the stake. Stakes need both players signed in.
+- **Season prize pool** — `prizePoolShare`% of every fee accumulates in a pool; every `seasonHours` the pool pays the
+  season's top 3 by points (50/30/20 %) and points reset. The remainder of the fee stays in the vault as treasury.
+- **Items** — potions / X Attack / X Defend are battle turns, Great/Ultra Balls change catch odds. Bought with
+  PokéCoins earned by catching and winning, so guests get the whole game too.
+
+**Env vars**: `VAULT_SECRET_KEY` (base58 or JSON array; if unset a keypair is generated into `data/vault.json` — back it
+up), `SOLANA_RPC` (use Helius/QuickNode in production), `TOKEN_MINT` / `TOKEN_DECIMALS` (default from config, 6),
+`ADMIN_KEY` (enables `GET /api/admin/vault?key=…`), `ARENA_DEV_FAUCET=1` (non-production only: `dev_credit` message
+adds balance for testing).
+
+**Operator notes**: the vault is a hot wallet — keep only what withdrawals need and sweep the rest to cold storage;
+`/api/admin/vault` shows liabilities (sum of balances) vs vault holdings. Token staking on a game with chance is
+regulated as gambling in many places; that is a business/legal decision, not a technical one.
+
 ## Deploy
 
 Single Node process serving static files + WebSockets. `render.yaml` is included — one click at

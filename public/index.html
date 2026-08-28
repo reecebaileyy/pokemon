@@ -146,6 +146,7 @@
                 <h3 id="enc-title">A wild Pokémon appeared</h3>
                 <div class="enc-bar"><div class="zone"></div><div class="zone-perfect"></div><div class="cursor" id="enc-cursor"></div></div>
                 <div class="enc-msg" id="enc-msg"></div>
+                <div class="enc-balls" id="enc-balls"></div>
                 <div class="enc-actions">
                   <button class="btn btn-primary" id="enc-throw" type="button">Throw <kbd>Space</kbd></button>
                   <button class="btn btn-ghost" id="enc-run" type="button">Run</button>
@@ -172,8 +173,11 @@
                 </div>
                 <div class="console">
                   <div class="battle-log" id="battle-log"></div>
-                  <div class="battle-moves" id="battle-moves"></div>
-                  <div class="battle-foot"><span id="battle-timer"></span><button class="btn btn-ghost btn-sm" id="battle-forfeit" type="button">Forfeit</button></div>
+                  <div class="battle-actions">
+                    <div class="battle-moves" id="battle-moves"></div>
+                    <div class="battle-bag hidden" id="battle-bag"></div>
+                  </div>
+                  <div class="battle-foot"><span id="battle-timer"></span><span class="battle-pot" id="battle-pot"></span><span class="battle-foot-btns"><button class="btn btn-ghost btn-sm" id="battle-bag-btn" type="button">Bag</button><button class="btn btn-ghost btn-sm" id="battle-forfeit" type="button">Forfeit</button></span></div>
                 </div>
               </div>
             </div>
@@ -207,8 +211,11 @@
 
         <aside class="arena-side" id="arena-side">
           <section class="panel"><h4>You</h4><div class="me-card" id="me-card"><span class="muted">Not in the arena.</span></div></section>
+          <section class="panel" id="account-panel"><h4>Account <small>save progress · stake $POKEMON</small></h4><div class="account-card" id="account-card"><span class="muted">Enter the arena first.</span></div></section>
           <section class="panel"><h4>Party <small>tap to switch</small></h4><div class="party" id="party-list"></div></section>
-          <section class="panel"><h4>Nearby</h4><div class="nearby-list" id="nearby-list"><div class="muted">—</div></div></section>
+          <section class="panel"><h4>Bag &amp; shop <small>PokéCoins</small></h4><div class="bag" id="bag"></div></section>
+          <section class="panel"><h4>Nearby <small>battle · stake</small></h4><div class="nearby-list" id="nearby-list"><div class="muted">—</div></div></section>
+          <section class="panel" id="season-panel"><h4>Season prize pool</h4><div class="season-card" id="season-card"><span class="muted">—</span></div></section>
           <section class="panel"><h4>Leaderboard <small>live</small></h4><ol class="lb" id="leaderboard"></ol></section>
           <section class="panel"><h4>Hall of fame <small>all time</small></h4><ol class="lb" id="hall-of-fame"></ol></section>
         </aside>
@@ -229,11 +236,61 @@
   </main>
 
 
+  <!-- Account modals -->
+  <div class="modal hidden" id="modal-auth" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <button class="modal-close" data-close aria-label="Close">×</button>
+      <h3>Save your progress</h3>
+      <p class="muted">Your party, bag, points and $POKEMON balance are tied to an account. Pick one:</p>
+      <div class="auth-options">
+        <button class="btn btn-primary" id="auth-wallet" type="button">Connect wallet</button>
+        <span class="auth-or">or</span>
+        <form class="auth-form" id="auth-smart" autocomplete="off">
+          <input id="auth-user" placeholder="Username" maxlength="16" autocomplete="username" />
+          <input id="auth-pass" type="password" placeholder="Passphrase (8+ characters)" autocomplete="current-password" />
+          <label class="check"><input type="checkbox" id="auth-create" /> Create a new smart wallet account</label>
+          <button class="btn btn-ghost" type="submit">Sign in with smart wallet</button>
+        </form>
+      </div>
+      <p class="muted small">A smart wallet is an account that lives inside the arena — no browser extension needed. Deposit to its address from any wallet or exchange; withdraw to any Solana address.</p>
+      <div class="modal-status" id="auth-status"></div>
+    </div>
+  </div>
+
+  <div class="modal hidden" id="modal-deposit" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <button class="modal-close" data-close aria-label="Close">×</button>
+      <h3>Deposit $POKEMON</h3>
+      <p class="muted">Send <span data-cfg="ticker">$POKEMON</span> to your personal arena address. It's credited automatically after the transaction confirms (usually under a minute).</p>
+      <div class="addr-box"><code id="deposit-address">…</code><button class="copy" id="copy-deposit" type="button">Copy</button></div>
+      <div class="deposit-wallet" id="deposit-wallet">
+        <div class="row"><input id="deposit-amount" type="number" min="1" step="1" placeholder="Amount" /><button class="btn btn-primary" id="deposit-send" type="button">Deposit from wallet</button></div>
+        <p class="muted small">Builds the transfer for you — your wallet just signs it.</p>
+      </div>
+      <div class="modal-status" id="deposit-status"></div>
+    </div>
+  </div>
+
+  <div class="modal hidden" id="modal-withdraw" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <button class="modal-close" data-close aria-label="Close">×</button>
+      <h3>Withdraw $POKEMON</h3>
+      <p class="muted" id="withdraw-limits"></p>
+      <form class="withdraw-form" id="withdraw-form" autocomplete="off">
+        <input id="withdraw-amount" type="number" min="1" step="1" placeholder="Amount" />
+        <input id="withdraw-to" placeholder="Destination Solana address" />
+        <button class="btn btn-primary" type="submit">Withdraw</button>
+      </form>
+      <div class="modal-status" id="withdraw-status"></div>
+    </div>
+  </div>
+
   <div id="yt-player" class="yt-hidden" aria-hidden="true"></div>
 
   <script src="config.js"></script>
   <script src="sprites.js"></script>
   <script src="pokedex.js"></script>
+  <script src="wallet.js"></script>
   <script src="main.js"></script>
   <script src="game.js"></script>
 </body>
