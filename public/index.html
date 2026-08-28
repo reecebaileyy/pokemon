@@ -268,6 +268,8 @@
           <div>
             <h4>Check it yourself</h4>
             <p class="muted">Open any signature on Solscan: one <code>BurnChecked</code> instruction, tokens leave the vault's token account, no account receives them, and the supply falls. To audit every burn at once run <code>node scripts/verify-burn.js --site https://www.pokemoncto.com</code> from the <a href="https://github.com/reecebaileyy/pokemon" target="_blank" rel="noopener">open-source repo</a>.</p>
+            <p class="muted" id="docs-reserves">Reserves: checking…</p>
+            <p class="muted">Balances are never invented: one is created only when a <b>finalized</b> deposit of <span data-cfg="ticker">$POKEMON</span> lands on your own arena address. Wins and prizes just move balance between players.</p>
             <p class="muted">Vault wallet: <a id="docs-vault-link" href="#" target="_blank" rel="noopener"><code id="docs-vault">—</code></a></p>
           </div>
         </div>
@@ -313,7 +315,7 @@
         </section>
         <section>
           <h4>10 · Deposit &amp; withdraw</h4>
-          <p>Deposit: send <span data-cfg="ticker">$POKEMON</span> to your personal arena address (Account → Deposit) from any wallet or exchange, or let the site build the transfer for your wallet to sign. Credited within about a minute. Withdraw to any Solana address: minimum <span data-econ="minWithdraw">1,000</span>, up to <span data-econ="maxWithdrawPerDay">2,000,000</span> per day. Balances are held by the arena vault, not by a third party.</p>
+          <p>Deposit: send <span data-cfg="ticker">$POKEMON</span> to your personal arena address (Account → Deposit) from any wallet or exchange, or let the site build the transfer for your wallet to sign. Credited once the transaction is finalized on Solana (about a minute) — a balance can only ever come from a real deposit. Withdraw to any Solana address: minimum <span data-econ="minWithdraw">1,000</span>, up to <span data-econ="maxWithdrawPerDay">2,000,000</span> per day. Balances are held by the arena vault, not by a third party.</p>
         </section>
       </div>
       <p class="muted small docs-foot">Chat: <kbd>Enter</kbd> · Rematch: press <kbd>Space</kbd> near the same trainer · Run from an encounter with B / Run. The <b>How to play</b> button inside the arena opens these same docs as a panel.</p>

@@ -93,6 +93,15 @@ adds balance for testing).
 stretched letters) and refuses blocked trainer names / smart-wallet usernames (they become `Trainer###` or are rejected).
 Tune it in `config.js → moderation` (`extra`, `extraStrong`, `allow` word lists).
 
+**Are balances real?** A balance is created in exactly one way: a **finalized** on-chain deposit of the mint to that
+account's own deposit address (`pollDeposits` → token-balance delta of the deposit account, each signature credited
+once). Everything else only moves existing balance between players: battle escrow/payout, season prizes paid from the
+pool, and the refund if a withdrawal transfer fails. The test faucet (`dev_credit`) needs `ARENA_DEV_FAUCET=1`, a
+non-production `NODE_ENV` **and** a connection from localhost — it cannot be used on Render, staging included; any faucet
+credit is recorded per account (`faucet`) and reported. `GET /api/reserves` is a public proof of reserves (vault token
+account + unswept deposits vs. player balances + prize pool + queued burns) and is shown live in Docs. Staging only:
+`GET /api/admin/reset-balances?key=…&confirm=yes` wipes all test balances (refused in production).
+
 **Verifying burns** — every PokéStore purchase is burned from the vault with a Token-2022 `BurnChecked` (batched about
 once a minute). Audit trail: `GET /api/burns` lists every burn with its signature; the Season card links the latest ones.
 To check on-chain yourself: open a signature on Solscan (one `BurnChecked` instruction, tokens leave the vault account and
