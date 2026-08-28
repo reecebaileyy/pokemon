@@ -198,6 +198,9 @@
     // Lore: tokens burned so far = launch supply (1B on pump.fun) minus current on-chain supply
     const burnedEl = $('lore-burned');
     if (burnedEl && m.supply && m.supply < 1e9) burnedEl.textContent = fmtNum(1e9 - m.supply);
+    const docsBurned = $('docs-supply-burned'), docsSupply = $('docs-supply');
+    if (docsBurned && m.supply && m.supply < 1e9) docsBurned.textContent = fmtNum(1e9 - m.supply);
+    if (docsSupply && m.supply) docsSupply.textContent = fmtNum(m.supply);
     first = false;
   }
   async function pollMetrics() {

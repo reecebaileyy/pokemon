@@ -254,7 +254,9 @@
   function setStatus(id, text, cls, html) { const el = $(id); el.className = 'modal-status ' + (cls || ''); if (html) el.innerHTML = text; else el.textContent = text; }
 
   /* ---------- How to play ---------- */
-  function fillEconomy(e) { document.querySelectorAll('[data-econ]').forEach(el => { const v = e && e[el.dataset.econ]; if (v != null) el.textContent = typeof v === 'number' ? fmt(v) : v; }); }
+  function fillEconomy(e) { document.querySelectorAll('[data-econ]').forEach(el => { const k = el.dataset.econ; const v = !e ? null : k.startsWith('price_') ? (e.prices || {})[k.slice(6)] : e[k]; if (v != null) el.textContent = typeof v === 'number' ? fmt(v) : v; }); }
+  // The in-game "How to play" panel is a copy of the on-page Docs grid — one source of truth.
+  if ($('guide-body') && $('docs-grid')) $('guide-body').innerHTML = $('docs-grid').innerHTML;
   fillEconomy(C.economy);
   ['guide-btn', 'guide-btn-join'].forEach(id => { const b = $(id); if (b) b.addEventListener('click', () => openModal('modal-guide')); });
 
@@ -315,7 +317,21 @@
     if (economy.devFaucet) $('acct-faucet').addEventListener('click', () => send({ t: 'dev_credit', amount: 10000 }));
   }
   let seasonTimer = null;
+  /** Live burn numbers in the on-page Docs section (works for visitors who never enter the arena). */
+  function renderDocs() {
+    const b = season && season.burn;
+    if (!b || !$('docs-burned')) return;
+    $('docs-burned').textContent = fmt(b.total);
+    $('docs-pending').textContent = fmt(b.pending);
+    $('docs-burn-count').textContent = fmt(b.count);
+    const list = $('docs-burn-list');
+    if (list) list.innerHTML = (b.recent || []).length
+      ? b.recent.map(r => `<a href="https://solscan.io/tx/${esc(r.signature)}" target="_blank" rel="noopener" title="${new Date(r.at).toLocaleString()}"><span>${new Date(r.at).toLocaleDateString()}</span>🔥 ${fmt(r.amount)} ${TICKER}<span>${esc(r.signature.slice(0, 10))}… ↗</span></a>`).join('')
+      : '<span class="muted">No burns yet — the first PokéStore purchase starts the log.</span>';
+    if (b.vault && $('docs-vault')) { $('docs-vault').textContent = b.vault; $('docs-vault-link').href = `https://solscan.io/account/${b.vault}`; }
+  }
   function renderSeason() {
+    renderDocs();
     const wrap = $('season-card');
     if (!season) { wrap.innerHTML = '<span class="muted">—</span>'; return; }
     const left = Math.max(0, season.endsAt - Date.now());
@@ -327,7 +343,7 @@
       (account ? `<div class="how">You: ${fmt(season.mine || 0)} pts this season.</div>` : '') +
       `<div class="how">${season.feePct}% of every staked pot is taken as fee; ${season.poolShare}% of that feeds this pool.</div>` +
       (season.burn ? `<div class="burn"><b>🔥 ${fmt(season.burn.total)} ${TICKER} burned</b> by the PokéStore${season.burn.pending ? ` · ${fmt(season.burn.pending)} queued` : ''}` +
-        ((season.burn.recent || []).length ? `<div class="burn-list">${season.burn.recent.map(b => `<a href="https://solscan.io/tx/${esc(b.signature)}" target="_blank" rel="noopener" title="${new Date(b.at).toLocaleString()}">${fmt(b.amount)} burned · ${esc(b.signature.slice(0, 8))}… ↗</a>`).join('')}<a href="/api/burns" target="_blank" rel="noopener">full burn log ↗</a></div>` : '') +
+        ((season.burn.recent || []).length ? `<div class="burn-list">${season.burn.recent.slice(0, 3).map(b => `<a href="https://solscan.io/tx/${esc(b.signature)}" target="_blank" rel="noopener" title="${new Date(b.at).toLocaleString()}">${fmt(b.amount)} burned · ${esc(b.signature.slice(0, 8))}… ↗</a>`).join('')}<a href="/api/burns" target="_blank" rel="noopener">full burn log ↗</a></div>` : '') +
         `</div>` : '');
     clearTimeout(seasonTimer); seasonTimer = setTimeout(renderSeason, 30000);
   }
