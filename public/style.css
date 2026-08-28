@@ -298,6 +298,105 @@ i.shiny { color: var(--accent); font-style: normal; font-size: 0.75em; margin-le
 .lb .pts { font-family: var(--mono); font-size: 0.78rem; color: var(--muted); }
 .lb li.me .nm { color: var(--accent); }
 
+/* Panels under the game (store, season, hall of fame) */
+.arena-under { grid-column: 1 / -1; display: grid; grid-template-columns: 1.5fr 1fr 1fr; gap: 1rem; align-items: start; }
+.wallet-links { display: grid; gap: 0.4rem; }
+.wallet-links a { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; background: var(--surface-2); border: 1px solid var(--line-2); border-radius: 10px; padding: 0.6rem 0.8rem; font-weight: 600; font-size: 0.88rem; }
+.wallet-links a span { color: var(--muted); font-weight: 500; font-size: 0.78rem; }
+.wallet-links p { font-size: 0.8rem; color: var(--muted); }
+.modal-status:empty { display: none; }
+.deposit-wallet.hidden + .modal-status { margin-top: 0; }
+
+/* Account / economy panels */
+.account-card { font-size: 0.85rem; display: grid; gap: 0.55rem; }
+.account-card .acct-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.account-card .acct-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.account-card .acct-type { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); border: 1px solid var(--line-2); border-radius: 999px; padding: 0.1em 0.5em; white-space: nowrap; }
+.account-card .acct-bal { font-family: var(--mono); font-size: 1.25rem; font-weight: 600; }
+.account-card .acct-bal small { font-size: 0.7rem; color: var(--muted); font-weight: 500; margin-left: 0.3em; }
+.account-card .acct-meta { color: var(--muted); font-size: 0.75rem; display: flex; flex-wrap: wrap; gap: 0.3rem 0.8rem; }
+.account-card .acct-btns { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.account-card .acct-btns .btn { flex: 1; }
+.account-card p { color: var(--muted); font-size: 0.8rem; }
+.bag { display: grid; gap: 0.6rem; font-size: 0.82rem; }
+.bag .coins { display: flex; justify-content: space-between; align-items: baseline; }
+.bag .coins b { font-family: var(--mono); font-size: 1rem; }
+.bag .inv { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.bag .inv span { background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 0.2em 0.55em; font-weight: 600; font-size: 0.78rem; }
+.bag .shop { display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); gap: 0.35rem 1rem; }
+.bag .shop-item { display: flex; align-items: center; gap: 0.5rem; }
+.bag .shop-item .ic { width: 22px; text-align: center; }
+.bag .shop-item .nm { flex: 1; min-width: 0; }
+.bag .shop-item .nm b { display: block; font-size: 0.8rem; }
+.bag .shop-item .nm small { color: var(--muted); font-size: 0.7rem; display: block; }
+.bag .shop-item .cost { font-family: var(--mono); font-size: 0.75rem; color: var(--muted); white-space: nowrap; }
+.season-card { font-size: 0.82rem; display: grid; gap: 0.45rem; }
+.season-card .pool { font-family: var(--mono); font-size: 1.2rem; font-weight: 600; color: var(--accent); }
+.season-card .pool small { font-size: 0.7rem; color: var(--muted); font-weight: 500; margin-left: 0.3em; font-family: var(--sans); }
+.season-card .countdown { color: var(--muted); font-size: 0.75rem; }
+.season-card ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.25rem; }
+.season-card li { display: flex; align-items: center; gap: 0.45rem; }
+.season-card li .pl { width: 1.2em; font-family: var(--mono); font-size: 0.72rem; color: var(--muted); }
+.season-card li .nm { flex: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.season-card li .pts { font-family: var(--mono); font-size: 0.72rem; color: var(--muted); }
+.season-card li.me .nm { color: var(--accent); }
+.season-card .how { color: var(--muted); font-size: 0.72rem; }
+.nearby .stake { width: 88px; background: var(--surface-2); border: 1px solid var(--line-2); border-radius: 8px; padding: 0.35rem 0.5rem; font-family: var(--mono); font-size: 0.78rem; }
+.nearby .stake::placeholder { color: var(--muted); }
+
+/* Modals */
+.modal { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; background: rgba(5,5,8,0.72); backdrop-filter: blur(4px); padding: 1rem; }
+.modal-card { position: relative; width: min(460px, 100%); background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--r-lg); padding: 1.4rem 1.4rem 1.2rem; display: grid; gap: 0.8rem; box-shadow: 0 30px 80px rgba(0,0,0,0.6); }
+.modal-card h3 { font-size: 1.1rem; }
+.modal-card p { font-size: 0.9rem; }
+.modal-card .small { font-size: 0.78rem; }
+.modal-close { position: absolute; top: 0.6rem; right: 0.7rem; background: none; border: 0; color: var(--muted); font-size: 1.4rem; line-height: 1; padding: 0.2rem 0.4rem; }
+.modal-close:hover { color: var(--text); }
+.auth-options { display: grid; gap: 0.7rem; }
+.auth-or { text-align: center; color: var(--muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; }
+.auth-form { display: grid; gap: 0.5rem; }
+.modal-card input:not([type=checkbox]) { background: var(--surface-2); border: 1px solid var(--line-2); border-radius: 10px; padding: 0.65rem 0.8rem; width: 100%; }
+.modal-card input:focus { outline: none; border-color: var(--accent); }
+.check { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: var(--muted); }
+.modal-status { font-size: 0.85rem; min-height: 1.3em; color: var(--muted); word-break: break-all; }
+.modal-status.err { color: var(--red); }
+.modal-status.ok { color: var(--green); }
+.modal-status a { color: var(--accent); }
+.addr-box { display: flex; align-items: center; gap: 0.5rem; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 0.5rem 0.5rem 0.5rem 0.8rem; }
+.addr-box code { flex: 1; min-width: 0; font-family: var(--mono); font-size: 0.78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.deposit-wallet .row { display: flex; gap: 0.5rem; }
+.deposit-wallet .row input { flex: 1; }
+.withdraw-form { display: grid; gap: 0.5rem; }
+
+/* How to play */
+.arena-head-right { display: flex; align-items: center; gap: 0.9rem; flex-wrap: wrap; }
+.modal-card.guide { width: min(720px, 100%); max-height: 88vh; overflow: auto; }
+.guide-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem 1.2rem; }
+.guide-grid section { background: var(--bg); border: 1px solid var(--line); border-radius: var(--r); padding: 0.85rem 0.95rem; }
+.guide-grid h4 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent); margin-bottom: 0.35rem; }
+.guide-grid p { font-size: 0.84rem; color: var(--muted); }
+.guide-grid p b { color: var(--text); font-weight: 600; }
+.join-help { margin-top: 0.6rem; font-size: 0.78rem; color: var(--muted); text-align: center; }
+.linkbtn { background: none; border: 0; padding: 0; color: var(--accent); font-weight: 600; font-size: inherit; text-decoration: underline; text-underline-offset: 2px; }
+@media (max-width: 820px) { .guide-grid { grid-template-columns: 1fr; } .arena-head-right { width: 100%; } }
+
+/* Battle bag + pot, encounter balls */
+.battle-actions { position: relative; }
+.battle-bag { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+.battle-bag .item-btn { border: 1px solid var(--line-2); border-radius: 10px; padding: 0.5rem 0.7rem; background: var(--surface-2); text-align: left; display: grid; gap: 0.1rem; }
+.battle-bag .item-btn:hover:not(:disabled) { background: #222228; }
+.battle-bag .item-btn:disabled { opacity: 0.4; }
+.battle-bag .item-btn b { font-size: 0.85rem; }
+.battle-bag .item-btn small { color: var(--muted); font-size: 0.72rem; }
+.battle-bag .empty { grid-column: 1 / -1; color: var(--muted); font-size: 0.85rem; padding: 0.5rem; }
+.battle-pot { color: var(--accent); font-family: var(--mono); font-size: 0.75rem; }
+.battle-foot-btns { display: flex; gap: 0.4rem; }
+.enc-balls { display: flex; justify-content: center; gap: 0.4rem; margin: 0.4rem 0 0; flex-wrap: wrap; }
+.enc-balls button { border: 1px solid var(--line-2); background: var(--surface-2); border-radius: 999px; padding: 0.25em 0.7em; font-size: 0.78rem; font-weight: 600; }
+.enc-balls button.on { border-color: var(--accent); color: var(--accent); }
+.enc-balls button:disabled { opacity: 0.4; }
+.buff { font-size: 0.65rem; font-weight: 700; padding: 0.1em 0.4em; border-radius: 999px; background: rgba(255,203,5,0.15); color: var(--accent); margin-left: 0.3em; }
+
 /* Evolution roadmap */
 .evo-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.8rem; }
 .evo-stage { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 1.2rem 1rem 1rem; text-align: center; position: relative; }
@@ -331,6 +430,9 @@ i.shiny { color: var(--accent); font-style: normal; font-size: 0.75em; margin-le
 @media (max-width: 1000px) {
   .arena { grid-template-columns: 1fr; }
   .arena-side { grid-template-columns: 1fr 1fr; }
+  .arena-side .panel:last-child { grid-column: 1 / -1; }
+  .arena-under { grid-template-columns: 1fr 1fr; }
+  .arena-under .panel:first-child { grid-column: 1 / -1; }
   .proof-grid { grid-template-columns: repeat(2, 1fr); }
   .evo-row { grid-template-columns: repeat(2, 1fr); }
 }
@@ -352,6 +454,8 @@ i.shiny { color: var(--accent); font-style: normal; font-size: 0.75em; margin-le
   .section { padding: 2.5rem 20px; }
   .container { padding: 0 20px; }
   .arena-side { grid-template-columns: 1fr; }
+  .arena-under { grid-template-columns: 1fr; }
+  .arena-under .panel:first-child { grid-column: auto; }
   .proof-grid, .evo-row { grid-template-columns: 1fr; }
   .join-row { grid-template-columns: 1fr auto; }
   .join-row .btn { grid-column: 1 / -1; }
@@ -384,6 +488,7 @@ i.shiny { color: var(--accent); font-style: normal; font-size: 0.75em; margin-le
   .proof span { font-size: 0.74rem; margin-top: 0.15rem; }
   .cols { gap: 0.7rem; }
   .cols > div { padding: 1.15rem 1.15rem; }
+  .arena-under { grid-template-columns: 1fr; }
   .lore { grid-template-columns: 1fr; gap: 1.2rem; }
   .lore-chapters li { padding: 1rem 1.05rem; gap: 0.8rem; }
   .lore-frame { padding: 0.45rem; }
@@ -443,3 +548,15 @@ i.shiny { color: var(--accent); font-style: normal; font-size: 0.75em; margin-le
 }
 
 @media (prefers-reduced-motion: reduce) { .reveal { transition: none; opacity: 1; transform: none; } }
+.bag .burn-note { color: var(--muted); font-size: 0.72rem; border-top: 1px dashed var(--line-2); padding-top: 0.5rem; }
+.season-card .burn { color: var(--muted); font-size: 0.74rem; border-top: 1px dashed var(--line-2); padding-top: 0.45rem; }
+.season-card .burn b { color: var(--text); }
+.season-card .burn a { color: var(--accent); }
+.btn-x { display: inline-flex; align-items: center; justify-content: center; gap: 0.5em; background: #000; color: #fff; border: 1px solid #333; }
+.btn-x:hover { background: #111; border-color: #555; }
+.btn-x svg { flex: none; }
+.account-card .acct-avatar { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; flex: none; border: 1px solid var(--line-2); }
+.account-card .acct-type.handle { text-transform: none; letter-spacing: 0; }
+.season-card .burn-list { display: grid; gap: 0.15rem; margin-top: 0.3rem; font-family: var(--mono); font-size: 0.7rem; }
+.season-card .burn-list a { color: var(--muted); }
+.season-card .burn-list a:hover { color: var(--accent); }

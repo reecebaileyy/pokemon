@@ -17,7 +17,18 @@ services:
         value: production
       - key: NODE_VERSION
         value: "22"
+      # Economy — set these in the Render dashboard BEFORE the first deploy of the economy (sync: false = never overwritten by a blueprint sync)
+      - key: VAULT_SECRET_KEY   # base58 secret of the arena vault wallet; deposit addresses derive from it, so never rotate casually
+        sync: false
+      - key: SOLANA_RPC         # Helius/QuickNode mainnet endpoint (public RPC is too rate-limited for deposit polling)
+        sync: false
+      - key: ADMIN_KEY          # enables GET /api/admin/vault?key=… (vault balances, ledger totals, recent burns)
+        sync: false
+      - key: X_CLIENT_ID        # Sign in with X — OAuth 2.0 client id from developer.x.com (add https://www.pokemoncto.com/auth/x/callback to the app)
+        sync: false
+      - key: X_CLIENT_SECRET
+        sync: false
     disk:
       name: arena-data
-      mountPath: /opt/render/project/src/data   # persists data/hall-of-fame.json across deploys
+      mountPath: /opt/render/project/src/data   # persists data/ledger.json (balances, burns) and hall-of-fame across deploys
       sizeGB: 1

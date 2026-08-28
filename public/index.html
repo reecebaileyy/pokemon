@@ -119,7 +119,10 @@
     <section class="section container container-wide" id="arena">
       <div class="section-head row">
         <div><h2>Arena</h2><p class="lead">A shared Gen-1 overworld. Catch wild Pokémon in tall grass, battle nearby trainers, evolve your team. <span id="arena-online">0</span> trainers online.</p></div>
-        <div class="controls"><kbd>WASD</kbd> move <kbd>Space</kbd> throw / battle <kbd>Enter</kbd> chat</div>
+        <div class="arena-head-right">
+          <div class="controls"><kbd>WASD</kbd> move <kbd>Space</kbd> throw / battle <kbd>Enter</kbd> chat</div>
+          <button class="btn btn-ghost btn-sm" id="guide-btn" type="button">How to play</button>
+        </div>
       </div>
 
       <div class="arena">
@@ -137,6 +140,7 @@
                   <button class="btn btn-primary" id="join-btn" type="button">Enter</button>
                 </div>
                 <div class="join-error" id="join-error"></div>
+                <p class="join-help"><button class="linkbtn" id="guide-btn-join" type="button">How to play</button> · Guests play free; sign in to save progress and stake <span data-cfg="ticker">$POKEMON</span>.</p>
               </div>
             </div>
 
@@ -146,6 +150,7 @@
                 <h3 id="enc-title">A wild Pokémon appeared</h3>
                 <div class="enc-bar"><div class="zone"></div><div class="zone-perfect"></div><div class="cursor" id="enc-cursor"></div></div>
                 <div class="enc-msg" id="enc-msg"></div>
+                <div class="enc-balls" id="enc-balls"></div>
                 <div class="enc-actions">
                   <button class="btn btn-primary" id="enc-throw" type="button">Throw <kbd>Space</kbd></button>
                   <button class="btn btn-ghost" id="enc-run" type="button">Run</button>
@@ -172,8 +177,11 @@
                 </div>
                 <div class="console">
                   <div class="battle-log" id="battle-log"></div>
-                  <div class="battle-moves" id="battle-moves"></div>
-                  <div class="battle-foot"><span id="battle-timer"></span><button class="btn btn-ghost btn-sm" id="battle-forfeit" type="button">Forfeit</button></div>
+                  <div class="battle-actions">
+                    <div class="battle-moves" id="battle-moves"></div>
+                    <div class="battle-bag hidden" id="battle-bag"></div>
+                  </div>
+                  <div class="battle-foot"><span id="battle-timer"></span><span class="battle-pot" id="battle-pot"></span><span class="battle-foot-btns"><button class="btn btn-ghost btn-sm" id="battle-bag-btn" type="button">Bag</button><button class="btn btn-ghost btn-sm" id="battle-forfeit" type="button">Forfeit</button></span></div>
                 </div>
               </div>
             </div>
@@ -207,11 +215,17 @@
 
         <aside class="arena-side" id="arena-side">
           <section class="panel"><h4>You</h4><div class="me-card" id="me-card"><span class="muted">Not in the arena.</span></div></section>
+          <section class="panel" id="account-panel"><h4>Account <small>save progress · stake $POKEMON</small></h4><div class="account-card" id="account-card"><span class="muted">Enter the arena first.</span></div></section>
           <section class="panel"><h4>Party <small>tap to switch</small></h4><div class="party" id="party-list"></div></section>
-          <section class="panel"><h4>Nearby</h4><div class="nearby-list" id="nearby-list"><div class="muted">—</div></div></section>
+          <section class="panel"><h4>Nearby <small>battle · stake</small></h4><div class="nearby-list" id="nearby-list"><div class="muted">—</div></div></section>
           <section class="panel"><h4>Leaderboard <small>live</small></h4><ol class="lb" id="leaderboard"></ol></section>
-          <section class="panel"><h4>Hall of fame <small>all time</small></h4><ol class="lb" id="hall-of-fame"></ol></section>
         </aside>
+
+        <div class="arena-under">
+          <section class="panel"><h4>PokéStore <small>paid in $POKEMON · 100% burned</small></h4><div class="bag" id="bag"></div></section>
+          <section class="panel" id="season-panel"><h4>Season prize pool</h4><div class="season-card" id="season-card"><span class="muted">—</span></div></section>
+          <section class="panel"><h4>Hall of fame <small>all time</small></h4><ol class="lb" id="hall-of-fame"></ol></section>
+        </div>
       </div>
     </section>
 
@@ -229,11 +243,114 @@
   </main>
 
 
+  <!-- How to play -->
+  <div class="modal hidden" id="modal-guide" role="dialog" aria-modal="true">
+    <div class="modal-card guide">
+      <button class="modal-close" data-close aria-label="Close">×</button>
+      <h3>How to play</h3>
+      <div class="guide-grid">
+        <section>
+          <h4>1 · Enter</h4>
+          <p>Pick a starter — Bulbasaur, Charmander, Squirtle or Pikachu — a trainer name and a cap colour. You can play as a guest; <b>sign in</b> (Account panel) to keep your party, bag, points and balance.</p>
+        </section>
+        <section>
+          <h4>2 · Move</h4>
+          <p><kbd>WASD</kbd> or arrows on desktop, the D-pad on phones. Everyone on this page is in the same world — you'll see other trainers walking around, and your active Pokémon follows you.</p>
+        </section>
+        <section>
+          <h4>3 · Catch</h4>
+          <p>Wild Pokémon hide in <b>tall grass</b>. Step onto one, then stop the moving marker in the green zone — gold is a perfect throw. You get three throws; <b>Great</b> and <b>Ultra Balls</b> from the shop raise your odds. 1 in 32 spawns is <b>shiny</b> (×3 points); legendaries are announced to everyone. Your party holds six — tap one in the Party panel to make it active.</p>
+        </section>
+        <section>
+          <h4>4 · Battle</h4>
+          <p>Walk next to a trainer and press <kbd>Space</kbd> (or Battle in the Nearby panel). Battles are turn-based, 25 seconds per turn: choose one of four moves or open the <b>Bag</b> — Potions heal, X Attack / X Defend buff you for three turns, and using an item takes your turn. The full type chart applies (water beats fire, ghost ignores normal, and so on). Winner +25 points, loser +5. Forfeiting or disconnecting counts as a loss.</p>
+        </section>
+        <section>
+          <h4>5 · Level up &amp; evolve</h4>
+          <p>Your level is 1 + catches÷2 + wins÷2 and raises HP and damage. Starters evolve at <b>Lv 4</b> and <b>Lv 8</b>, Pikachu at Lv 6, Magikarp at Lv 5, Eevee at Lv 5 into a random Eeveelution.</p>
+        </section>
+        <section>
+          <h4>6 · PokéStore</h4>
+          <p>Potions, X items and balls are sold for <b><span data-cfg="ticker">$POKEMON</span></b> from your arena balance (sign in and deposit first). <b>100% of what you spend is burned</b> — the vault destroys it on-chain, so every purchase permanently shrinks the supply. The running burn total and transaction links are shown in the Season panel.</p>
+        </section>
+        <section>
+          <h4>7 · Accounts</h4>
+          <p><b>Continue with X</b> (your X account becomes your smart wallet — nothing to remember), <b>connect a wallet</b> (Phantom / Solflare signs a message — no transaction, no fee), or create a <b>smart wallet</b> with a username + passphrase. A smart wallet is an account that lives inside the arena with its own deposit address, for players without a browser wallet. Either way your progress resumes when you come back.</p>
+        </section>
+        <section>
+          <h4>8 · Staking <span data-cfg="ticker">$POKEMON</span></h4>
+          <p>Signed in with a balance? Type a stake next to a nearby trainer's Battle button, or accept theirs. Both stakes are locked when the battle starts; the winner takes the pot minus a <b><span data-econ="feePct">4</span>% fee</b>. Stakes run from <span data-econ="minStake">1,000</span> to <span data-econ="maxStake">5,000,000</span>. Forfeit or disconnect loses your stake. Only stake what you can afford to lose — battles have luck in them.</p>
+        </section>
+        <section>
+          <h4>9 · Season prize pool</h4>
+          <p><span data-econ="prizePoolShare">75</span>% of every fee goes into the pool. Every <span data-econ="seasonHours">24</span> hours it pays the season's top 3 by points — 50 / 30 / 20 % — and points reset. Catching, winning and staking all count.</p>
+        </section>
+        <section>
+          <h4>10 · Deposit &amp; withdraw</h4>
+          <p>Deposit: send <span data-cfg="ticker">$POKEMON</span> to your personal arena address (Account → Deposit) from any wallet or exchange, or let the site build the transfer for your wallet to sign. Credited within about a minute. Withdraw to any Solana address: minimum <span data-econ="minWithdraw">1,000</span>, up to <span data-econ="maxWithdrawPerDay">2,000,000</span> per day.</p>
+        </section>
+      </div>
+      <p class="muted small">Chat: <kbd>Enter</kbd> · Rematch: press <kbd>Space</kbd> near the same trainer · Run from an encounter with B / Run.</p>
+    </div>
+  </div>
+
+  <!-- Account modals -->
+  <div class="modal hidden" id="modal-auth" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <button class="modal-close" data-close aria-label="Close">×</button>
+      <h3>Save your progress</h3>
+      <p class="muted">Your party, bag, points and $POKEMON balance are tied to an account. Pick one:</p>
+      <div class="auth-options">
+        <button class="btn btn-x hidden" id="auth-x" type="button"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg> Continue with X</button>
+        <button class="btn btn-primary" id="auth-wallet" type="button">Connect wallet</button>
+        <div class="wallet-links hidden" id="wallet-links"></div>
+        <span class="auth-or">or</span>
+        <form class="auth-form" id="auth-smart" autocomplete="off">
+          <input id="auth-user" placeholder="Username" maxlength="16" autocomplete="username" />
+          <input id="auth-pass" type="password" placeholder="Passphrase (8+ characters)" autocomplete="current-password" />
+          <label class="check"><input type="checkbox" id="auth-create" /> Create a new smart wallet account</label>
+          <button class="btn btn-ghost" type="submit">Sign in with smart wallet</button>
+        </form>
+      </div>
+      <p class="muted small">A smart wallet is an account that lives inside the arena — no browser extension needed. Deposit to its address from any wallet or exchange; withdraw to any Solana address.</p>
+      <div class="modal-status" id="auth-status"></div>
+    </div>
+  </div>
+
+  <div class="modal hidden" id="modal-deposit" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <button class="modal-close" data-close aria-label="Close">×</button>
+      <h3>Deposit $POKEMON</h3>
+      <p class="muted">Send <span data-cfg="ticker">$POKEMON</span> to your personal arena address. It's credited automatically after the transaction confirms (usually under a minute).</p>
+      <div class="addr-box"><code id="deposit-address">…</code><button class="copy" id="copy-deposit" type="button">Copy</button></div>
+      <div class="deposit-wallet" id="deposit-wallet">
+        <div class="row"><input id="deposit-amount" type="number" min="1" step="1" placeholder="Amount" /><button class="btn btn-primary" id="deposit-send" type="button">Deposit from wallet</button></div>
+        <p class="muted small">Builds the transfer for you — your wallet just signs it.</p>
+      </div>
+      <div class="modal-status" id="deposit-status"></div>
+    </div>
+  </div>
+
+  <div class="modal hidden" id="modal-withdraw" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <button class="modal-close" data-close aria-label="Close">×</button>
+      <h3>Withdraw $POKEMON</h3>
+      <p class="muted" id="withdraw-limits"></p>
+      <form class="withdraw-form" id="withdraw-form" autocomplete="off">
+        <input id="withdraw-amount" type="number" min="1" step="1" placeholder="Amount" />
+        <input id="withdraw-to" placeholder="Destination Solana address" />
+        <button class="btn btn-primary" type="submit">Withdraw</button>
+      </form>
+      <div class="modal-status" id="withdraw-status"></div>
+    </div>
+  </div>
+
   <div id="yt-player" class="yt-hidden" aria-hidden="true"></div>
 
   <script src="config.js"></script>
   <script src="sprites.js"></script>
   <script src="pokedex.js"></script>
+  <script src="wallet.js"></script>
   <script src="main.js"></script>
   <script src="game.js"></script>
 </body>
