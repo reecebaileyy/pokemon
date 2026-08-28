@@ -365,6 +365,17 @@
       : '<span class="muted">No burns yet — the first PokéStore purchase starts the log.</span>';
     if (b.vault && $('docs-vault')) { $('docs-vault').textContent = b.vault; $('docs-vault-link').href = `https://solscan.io/account/${b.vault}`; }
   }
+  /** Proof of reserves in the Docs section: what the vault holds on-chain vs. what players are owed. */
+  async function loadReserves() {
+    const el = $('docs-reserves'); if (!el) return;
+    try {
+      const r = await (await fetch('/api/reserves')).json();
+      if (r.error) throw new Error(r.error);
+      if (r.heldOnChain == null) { el.textContent = 'Reserves: vault not configured on this server.'; return; }
+      el.innerHTML = `Reserves: vault holds <b>${fmt(r.heldOnChain)} ${TICKER}</b> on-chain · players are owed <b>${fmt(r.owed)}</b> (balances ${fmt(r.playerBalances)} + prize pool ${fmt(r.prizePool)} + queued burns ${fmt(r.pendingBurn)}) · ${r.fullyBacked ? '<span class="ok">fully backed ✓</span>' : '<span class="bad">not fully backed — deposits still sweeping or vault unfunded</span>'} · <a href="/api/reserves" target="_blank" rel="noopener">raw ↗</a>`;
+    } catch (e) { el.textContent = 'Reserves: unavailable right now.'; }
+  }
+  loadReserves(); setInterval(loadReserves, 120000);
   function renderSeason() {
     renderDocs();
     const wrap = $('season-card');

@@ -145,11 +145,12 @@ function create(opts) {
     const found = [];
     for (const t of targets) {
       let sigs;
-      try { sigs = await connection.getSignaturesForAddress(t.ata, { limit: 20 }, 'confirmed'); } catch (e) { continue; }
+      // Only FINALIZED transactions are credited: a balance must never come from a transaction that could still be dropped.
+      try { sigs = await connection.getSignaturesForAddress(t.ata, { limit: 20 }, 'finalized'); } catch (e) { continue; }
       for (const s of sigs) {
         if (s.err || isProcessed(s.signature)) continue;
         let tx;
-        try { tx = await connection.getParsedTransaction(s.signature, { commitment: 'confirmed', maxSupportedTransactionVersion: 0 }); } catch (e) { continue; }
+        try { tx = await connection.getParsedTransaction(s.signature, { commitment: 'finalized', maxSupportedTransactionVersion: 0 }); } catch (e) { continue; }
         const { delta, from } = deltaFor(tx, t.ata.toBase58());
         found.push({ index: t.index, signature: s.signature, amount: delta > 0n ? delta : 0n, from, blockTime: s.blockTime });
       }

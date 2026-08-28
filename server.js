@@ -23,6 +23,10 @@ const DATA_DIR = path.join(__dirname, 'data');
 const HALL_FILE = path.join(DATA_DIR, 'hall-of-fame.json');
 const LEDGER_FILE = path.join(DATA_DIR, 'ledger.json');
 const IS_PROD = process.env.NODE_ENV === 'production';
+// Dev-only helpers (fake balance for automated tests) work ONLY off-production, with ARENA_DEV_FAUCET=1, AND from a
+// localhost connection — so nothing deployed on Render (staging included) can ever mint balance out of thin air.
+const isLoopback = a => /^(::1|127\.0\.0\.1|::ffff:127\.0\.0\.1)$/.test(String(a || ''));
+const devToolsAllowed = ws => !IS_PROD && process.env.ARENA_DEV_FAUCET === '1' && isLoopback(ws && ws.remote);
 
 // ---------- Tunables ----------
 const MAP_W = 48;
@@ -467,6 +471,33 @@ async function handleWithdraw(p, msg) {
   } finally { withdrawing.delete(acc.id); }
 }
 
+// ---------- Proof of reserves: what players are owed vs. what the vault really holds on-chain ----------
+let reservesCache = { at: 0, data: null };
+async function reservesView() {
+  if (reservesCache.data && now() - reservesCache.at < 60000) return reservesCache.data;
+  const accounts = Object.values(ledger.accounts);
+  const balances = accounts.reduce((s, a) => s + bal(a), 0n);
+  const faucet = accounts.reduce((s, a) => s + BigInt(a.faucet || '0'), 0n);
+  const pool = BigInt(ledger.pool || '0'), treasury = BigInt(ledger.treasury || '0'), pendingBurn = BigInt(ledger.pendingBurn || '0');
+  let inVault = null, unswept = 0n;
+  if (vault) {
+    inVault = await vault.vaultTokenBalance();
+    for (const id of pendingSweeps) { const acc = ledger.accounts[id]; if (acc) unswept += await vault.tokenBalance(vault.depositAta(acc.depositIndex)); }
+  }
+  const held = inVault == null ? null : inVault + unswept;
+  const owed = balances + pool + pendingBurn;
+  const data = {
+    mint: TOKEN_MINT, vault: vault ? vault.vaultPubkey : null, vaultTokenAccount: vault ? vault.vaultAta : null,
+    playerBalances: toWhole(balances), prizePool: toWhole(pool), pendingBurn: toWhole(pendingBurn), treasury: toWhole(treasury),
+    owed: toWhole(owed), heldOnChain: held == null ? null : toWhole(held), inVault: inVault == null ? null : toWhole(inVault), unsweptDeposits: toWhole(unswept),
+    fullyBacked: held == null ? null : held >= owed, faucetCredits: toWhole(faucet), devFaucetPossibleHere: !IS_PROD && process.env.ARENA_DEV_FAUCET === '1',
+    checkedAt: now(),
+    howItWorks: 'A balance is only ever created by a finalized on-chain deposit of this mint to the account\'s own deposit address. Battle winnings and season prizes just move existing balance between players. owed = player balances + prize pool + queued burns; heldOnChain = the vault token account plus deposits not yet swept into it.'
+  };
+  reservesCache = { at: now(), data };
+  return data;
+}
+
 // ---------- Static file server ----------
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'application/javascript; charset=utf-8',
@@ -566,10 +597,25 @@ const server = http.createServer((req, res) => {
   if (urlPath === '/api/token') return void getTokenMetrics().then(d => json(d, 'public, max-age=15'));
   if (urlPath === '/api/chart') return void getChart(url.searchParams.get('tf')).then(d => json(d, 'public, max-age=30'));
   if (urlPath === '/api/blockhash') return void rpc('getLatestBlockhash', [{ commitment: 'confirmed' }]).then(r => json({ blockhash: r.result.value.blockhash, lastValidBlockHeight: r.result.value.lastValidBlockHeight })).catch(e => json({ error: e.message }));
+  if (urlPath === '/api/reserves') return void reservesView().then(d => json(d, 'public, max-age=60')).catch(e => json({ error: e.message }));
   if (urlPath === '/api/admin/vault') {
     if (!process.env.ADMIN_KEY || url.searchParams.get('key') !== process.env.ADMIN_KEY) { res.writeHead(403); return res.end('forbidden'); }
     const total = Object.values(ledger.accounts).reduce((s, a) => s + bal(a), 0n);
-    return void (vault ? vault.status() : Promise.resolve(null)).then(st => json({ vault: st, accounts: Object.keys(ledger.accounts).length, liabilities: toWhole(total), pool: toWhole(ledger.pool), treasury: toWhole(ledger.treasury), burn: burnView(), recentBurns: ledger.burns.slice(-10), pendingSweeps: [...pendingSweeps], recentDeposits: ledger.deposits.slice(-10), recentWithdrawals: ledger.withdrawals.slice(-10), prizes: ledger.prizes.slice(-5) }));
+    const faucet = Object.values(ledger.accounts).reduce((s, a) => s + BigInt(a.faucet || '0'), 0n);
+    return void Promise.all([vault ? vault.status() : Promise.resolve(null), reservesView()]).then(([st, reserves]) => json({ vault: st, reserves, accounts: Object.keys(ledger.accounts).length, liabilities: toWhole(total), faucetCredits: toWhole(faucet), pool: toWhole(ledger.pool), treasury: toWhole(ledger.treasury), burn: burnView(), recentBurns: ledger.burns.slice(-10), pendingSweeps: [...pendingSweeps], recentDeposits: ledger.deposits.slice(-10), recentWithdrawals: ledger.withdrawals.slice(-10), prizes: ledger.prizes.slice(-5) }));
+  }
+  if (urlPath === '/api/admin/reset-balances') {
+    // Staging only: wipe test balances so nothing fake lingers. Refused outright in production.
+    if (!process.env.ADMIN_KEY || url.searchParams.get('key') !== process.env.ADMIN_KEY) { res.writeHead(403); return res.end('forbidden'); }
+    if (IS_PROD) { res.writeHead(400, { 'Content-Type': 'text/plain' }); return res.end('refused: production balances are never wiped'); }
+    if (url.searchParams.get('confirm') !== 'yes') { res.writeHead(400, { 'Content-Type': 'text/plain' }); return res.end('add &confirm=yes to wipe every balance, the prize pool, treasury and queued burns on this staging server'); }
+    let n = 0;
+    for (const acc of Object.values(ledger.accounts)) { if (bal(acc) > 0n || acc.faucet) { setBal(acc, 0n); acc.faucet = '0'; n++; } }
+    ledger.pool = '0'; ledger.treasury = '0'; ledger.pendingBurn = '0';
+    saveLedger(true); reservesCache = { at: 0, data: null };
+    for (const p of players.values()) sendAccount(p);
+    broadcastSeason();
+    return json({ ok: true, accountsReset: n });
   }
   if (urlPath === '/') urlPath = '/index.html';
   const filePath = path.normalize(path.join(PUBLIC_DIR, urlPath));
@@ -1138,8 +1184,9 @@ function handleMove(p, dir) {
 const wss = new WebSocketServer({ server, maxPayload: 4096 });
 const economyView = () => ({ stakes: !!(ECON.stakes && vault), minStake: ECON.minStake, maxStake: ECON.maxStake, feePct: ECON.feePct, prizePoolShare: ECON.prizePoolShare, seasonHours: ECON.seasonHours, minWithdraw: ECON.minWithdraw, maxWithdrawPerDay: ECON.maxWithdrawPerDay, walletAuth: !!vault, xLogin: X_ENABLED, xFake: X_FAKE, storeBurnPct: ECON.storeBurnPct, storePoolPct: 100 - ECON.storeBurnPct, mint: TOKEN_MINT, decimals: TOKEN_DECIMALS, tokenProgram: vault ? vault.tokenProgram : null, devFaucet: !IS_PROD && process.env.ARENA_DEV_FAUCET === '1', prices: Object.fromEntries(Dex.ITEM_LIST.map(it => [it.id, itemPrice(it)])) });
 
-wss.on('connection', (ws) => {
+wss.on('connection', (ws, req) => {
   ws.isAlive = true;
+  ws.remote = (req && req.socket && req.socket.remoteAddress) || '';
   ws.on('pong', () => { ws.isAlive = true; });
   let player = null;
   sendWs(ws, { t: 'stats', online: players.size, wilds: wilds.size, leaderboard: leaderboard(10), hallOfFame: hallOfFame(10), season: seasonView(null) });
@@ -1199,7 +1246,7 @@ wss.on('connection', (ws) => {
       case 'throw': handleThrow(player, msg.quality, msg.ball); break;
       case 'release': if (player.pendingCatch) resolvePendingCatch(player, msg.index, false); else send(player, { t: 'error', msg: 'Nothing to release right now.' }); break;
       case 'dev_fill_party': {
-        if (IS_PROD || process.env.ARENA_DEV_FAUCET !== '1') return;
+        if (!devToolsAllowed(ws)) return;
         while (player.party.length < 6) player.party.push({ dex: Dex.WILD[player.party.length % Dex.WILD.length].dex, shiny: false });
         syncAccount(player); send(player, { t: 'party_update', party: partyView(player), active: player.active });
         break;
@@ -1239,9 +1286,9 @@ wss.on('connection', (ws) => {
       case 'deposit_watch': { const acc = player.accountId && ledger.accounts[player.accountId]; if (acc) { watchDeposits(acc); pollDeposits(); } break; }
       case 'withdraw': handleWithdraw(player, msg); break;
       case 'dev_credit': {
-        if (IS_PROD || process.env.ARENA_DEV_FAUCET !== '1') return;
+        if (!devToolsAllowed(ws)) return send(player, { t: 'error', msg: 'Test faucet is not available here — deposit real $POKEMON instead.' });
         const acc = player.accountId && ledger.accounts[player.accountId];
-        if (acc) { credit(acc, toBase(clamp(Number(msg.amount) || 0, 0, 1e9))); sendAccount(player); }
+        if (acc) { const amt = toBase(clamp(Number(msg.amount) || 0, 0, 1e9)); credit(acc, amt); acc.faucet = (BigInt(acc.faucet || '0') + amt).toString(); sendAccount(player); }
         break;
       }
       case 'ping': send(player, { t: 'pong', at: msg.at }); break;
