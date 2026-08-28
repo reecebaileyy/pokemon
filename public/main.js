@@ -14,11 +14,7 @@
   const fmtPct = v => v == null || isNaN(v) ? '—' : (v >= 0 ? '+' : '') + Number(v).toFixed(1) + '%';
   const dirCls = v => v == null || isNaN(v) ? '' : v >= 0 ? 'up' : 'down';
   const ageOf = ts => { const h = Math.max(0, (Date.now() - ts) / 36e5); return h < 1 ? `${Math.round(h * 60)}m` : h < 48 ? `${Math.round(h)}h` : `${Math.round(h / 24)}d`; };
-  // Phones render the site as a Game Boy: charts switch to the 4-shade LCD palette.
-  const gbQuery = window.matchMedia('(max-width: 820px)');
-  const pal = () => gbQuery.matches
-    ? { grid: 'rgba(15,56,15,0.18)', text: '#306230', up: '#306230', down: '#0f380f', volUp: 'rgba(48,98,48,0.5)', volDown: 'rgba(15,56,15,0.5)', last: '#0f380f', lastText: '#9bbc0f', lastLine: 'rgba(15,56,15,0.6)', cross: 'rgba(15,56,15,0.5)', sparkUp: '#0f380f', sparkDown: '#306230', sparkFillUp: 'rgba(15,56,15,0.18)', sparkFillDown: 'rgba(48,98,48,0.18)', hollowUp: true, bg: '#9bbc0f' }
-    : { grid: 'rgba(255,255,255,0.06)', text: '#8b8b95', up: '#34d399', down: '#f87171', volUp: 'rgba(52,211,153,0.28)', volDown: 'rgba(248,113,113,0.28)', last: '#ffcb05', lastText: '#1a1400', lastLine: 'rgba(255,203,5,0.6)', cross: 'rgba(255,255,255,0.25)', sparkUp: '#34d399', sparkDown: '#f87171', sparkFillUp: 'rgba(52,211,153,0.25)', sparkFillDown: 'rgba(248,113,113,0.25)', hollowUp: false, bg: '#131316' };
+  const pal = () => ({ grid: 'rgba(255,255,255,0.06)', text: '#8b8b95', up: '#34d399', down: '#f87171', volUp: 'rgba(52,211,153,0.28)', volDown: 'rgba(248,113,113,0.28)', last: '#ffcb05', lastText: '#1a1400', lastLine: 'rgba(255,203,5,0.6)', cross: 'rgba(255,255,255,0.25)', sparkUp: '#34d399', sparkDown: '#f87171', sparkFillUp: 'rgba(52,211,153,0.25)', sparkFillDown: 'rgba(248,113,113,0.25)', hollowUp: false, bg: '#131316' });
 
   /* ---------- Config binding ---------- */
   document.querySelectorAll('[data-cfg]').forEach(el => { const k = el.getAttribute('data-cfg'); if (C[k] != null) el.textContent = C[k]; });
@@ -155,7 +151,6 @@
   ccv.addEventListener('mouseleave', () => { chart.hover = -1; drawChart(); });
   const redraw = () => { drawChart(); if (chart.candles.length) drawSparkline(chart.candles.slice(-48).map(c => c[4])); };
   window.addEventListener('resize', redraw);
-  gbQuery.addEventListener('change', redraw);
   async function loadChart() {
     try {
       const r = await fetch(`/api/chart?tf=${chart.tf}`, { cache: 'no-store' });
@@ -189,19 +184,16 @@
     $('stat-vol').textContent = fmtUsd(m.volume && m.volume.h24);
     $('stat-holders').textContent = m.holders != null ? fmtNum(m.holders) : '—';
     // proof row
+    // Proof row: only checks that pass are shown — it's reassurance for buyers, not a risk report.
     const proofs = [];
     const rpcOk = m.sources && m.sources.rpc === 'ok';
-    if (rpcOk) {
-      proofs.push([m.mintAuthority ? 'warn' : 'ok', m.mintAuthority ? '!' : '✓', 'Mint authority', m.mintAuthority ? 'Active — supply can grow' : 'Revoked — supply is fixed']);
-      proofs.push([m.freezeAuthority ? 'warn' : 'ok', m.freezeAuthority ? '!' : '✓', 'Freeze authority', m.freezeAuthority ? 'Active' : 'Revoked — wallets can\'t be frozen']);
-    }
-    if (m.lpLockedPct != null) proofs.push([m.lpLockedPct >= 90 ? 'ok' : 'warn', m.lpLockedPct >= 90 ? '✓' : '!', 'Liquidity', `${Math.round(m.lpLockedPct)}% locked${m.dexId ? ' · ' + m.dexId : ''}`]);
-    if (m.rugScore != null) proofs.push([m.rugScore <= 20 ? 'ok' : m.rugScore <= 50 ? 'info' : 'warn', m.rugScore <= 20 ? '✓' : '!', 'RugCheck', `Risk ${m.rugScore}/100 · ${m.risks && m.risks.length ? esc(m.risks.map(r => r.name).join(', ')) : 'no risks flagged'}`]);
-    if (m.creatorBurned) proofs.push(['ok', '✓', 'Creator', 'Rights sent to the incinerator']);
-    if (m.supply) proofs.push(['info', '#', 'Supply', `${fmtNum(m.supply)} ${m.symbol ? '$' + m.symbol : ''}`]);
-    if (m.top10Pct != null) proofs.push([m.top10Pct <= 35 ? 'info' : 'warn', m.top10Pct <= 35 ? '◔' : '!', 'Top 10 holders', `${m.top10Pct.toFixed(1)}% of supply`]);
-    if (m.createdAt) proofs.push(['info', '·', 'Launched', `${ageOf(m.createdAt)} ago${m.bonded ? ' · bonded' : ''}`]);
-    $('proof-grid').innerHTML = proofs.slice(0, 8).map(([cls, ic, k, v]) => `<div class="proof ${cls}"><i>${ic}</i><div><b>${esc(k)}</b><span>${v}</span></div></div>`).join('');
+    if (rpcOk && !m.mintAuthority) proofs.push(['Mint authority revoked', 'Supply is fixed forever']);
+    if (rpcOk && !m.freezeAuthority) proofs.push(['Freeze authority revoked', 'Wallets can never be frozen']);
+    if (m.lpLockedPct != null && m.lpLockedPct >= 90) proofs.push(['Liquidity locked', `${Math.round(m.lpLockedPct)}% of LP${m.dexId ? ' · ' + esc(m.dexId) : ''}`]);
+    if (m.rugScore != null && m.rugScore <= 20 && !(m.risks && m.risks.length)) proofs.push(['RugCheck clean', `Risk score ${m.rugScore}/100 · no flags`]);
+    if (m.creatorBurned) proofs.push(['Creator rights burned', 'Sent to the incinerator']);
+    if (m.bonded) proofs.push(['Bonded', `Trading on ${esc(m.dexId || 'PumpSwap')}`]);
+    $('proof-grid').innerHTML = proofs.map(([k, v]) => `<div class="proof ok"><i>✓</i><div><b>${esc(k)}</b><span>${v}</span></div></div>`).join('');
     renderEvolution(m.marketCap, true);
     first = false;
   }

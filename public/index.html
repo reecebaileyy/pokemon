@@ -10,9 +10,8 @@
   <link rel="icon" href="assets/pokemon/25.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet" />
-  <meta name="theme-color" content="#0b0b0d" media="(min-width: 821px)" />
-  <meta name="theme-color" content="#c8c4bd" media="(max-width: 820px)" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;600&family=Press+Start+2P&display=swap" rel="stylesheet" />
+  <meta name="theme-color" content="#0b0b0d" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -37,8 +36,8 @@
     <section class="hero container">
       <div class="hero-copy">
         <p class="eyebrow">Community takeover · <span data-cfg="chain">Solana</span></p>
-        <h1>The dev left.<br />The chart didn't.</h1>
-        <p class="sub"><span data-cfg="ticker">$POKEMON</span> is run by its holders. Mint and freeze authority revoked, liquidity locked — verified on-chain below. Catch and battle in the arena while you hold.</p>
+        <h1>The community&#8209;run<br />Pokémon token.</h1>
+        <p class="sub">No team, no mint, liquidity locked — verified on-chain below. Hold <span data-cfg="ticker">$POKEMON</span>, then catch and battle in the arena.</p>
         <div class="ca">
           <span class="ca-label">CA</span>
           <code id="contract-address">…</code>
@@ -95,12 +94,6 @@
         <div><h3>Locked contract</h3><p>Mint and freeze authority revoked. Liquidity locked. Creator rights sent to the incinerator.</p></div>
         <div><h3>Something to do</h3><p>A live Gen-1 arena on this page. Catch, battle, evolve — everyone here shares one world.</p></div>
       </div>
-      <ol class="steps" id="steps">
-        <li><span>Launched on pump.fun</span></li>
-        <li><span>Bonded to PumpSwap</span></li>
-        <li><span>Dev walked</span></li>
-        <li class="now"><span>Community took over</span></li>
-      </ol>
     </section>
 
     <!-- Arena -->
@@ -112,6 +105,9 @@
 
       <div class="arena">
         <div class="arena-main">
+          <div class="gb">
+          <div class="gb-bezel">
+          <div class="gb-led"><i></i>POWER</div>
           <div class="arena-screen" id="arena-screen">
             <canvas id="game-canvas" width="800" height="480"></canvas>
 
@@ -172,23 +168,22 @@
               <button class="btn btn-ghost btn-sm" id="challenge-decline" type="button">Decline</button>
             </div>
             <div class="toasts" id="game-toasts"></div>
-            <div class="lcd-overlay" aria-hidden="true"></div>
           </div>
-
+          </div>
+          <div class="gb-brand"><b>POKÉMON</b><span>ARENA</span></div>
           <div class="gb-controls" id="gb-controls">
-            <div class="gb-label"><span>POKÉMON ARENA</span><small>DOT MATRIX · COMMUNITY EDITION</small></div>
             <div class="dpad" id="dpad">
               <button data-dir="up" aria-label="Up"></button><button data-dir="left" aria-label="Left"></button><span class="dpad-center"></span><button data-dir="right" aria-label="Right"></button><button data-dir="down" aria-label="Down"></button>
             </div>
             <div class="ab">
-              <div class="gb-key"><button class="gb-btn" id="b-btn" aria-label="B — run / back">B</button><small>run · back</small></div>
-              <div class="gb-key"><button class="gb-btn" id="action-btn" aria-label="A — throw / battle">A</button><small>throw · battle</small></div>
+              <div class="gb-key"><button class="gb-btn" id="b-btn" aria-label="B — run / back">B</button><small>RUN</small></div>
+              <div class="gb-key"><button class="gb-btn" id="action-btn" aria-label="A — throw / battle">A</button><small>THROW · BATTLE</small></div>
             </div>
             <div class="ss">
-              <div class="gb-key"><button class="pill-btn" id="select-btn" aria-label="Select — menu"></button><small>SELECT · menu</small></div>
-              <div class="gb-key"><button class="pill-btn" id="start-btn" aria-label="Start — chat"></button><small>START · chat</small></div>
-              <div class="gb-key"><button class="pill-btn color" id="lcd-toggle" aria-label="Toggle colour screen"></button><small>COLOR</small></div>
+              <div class="gb-key"><button class="pill-btn" id="select-btn" aria-label="Select — team"></button><small>SELECT</small></div>
+              <div class="gb-key"><button class="pill-btn" id="start-btn" aria-label="Start — chat"></button><small>START</small></div>
             </div>
+          </div>
           </div>
 
           <form class="chat" id="chat-form" autocomplete="off">

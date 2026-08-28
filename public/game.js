@@ -20,7 +20,7 @@
 
   const canvas = $('game-canvas');
   // Phones get a squarer handheld-style viewport (more rows visible in portrait)
-  if (window.matchMedia('(max-width: 820px)').matches) { canvas.width = 560; canvas.height = 480; }
+  if (window.matchMedia('(max-width: 820px)').matches) { canvas.width = 480; canvas.height = 416; }
   const ctx = canvas.getContext('2d');
   ctx.imageSmoothingEnabled = false;
   const VIEW_W = canvas.width, VIEW_H = canvas.height;
@@ -567,24 +567,9 @@
     if (!joined) return;
     if (encounter && !encounter.locked) send({ t: 'run' });
     else if (pendingChallenge) { send({ t: 'decline', id: pendingChallenge.id }); hideChallenge(); }
-    else if ($('arena-side').classList.contains('open')) $('arena-side').classList.remove('open');
   });
   $('start-btn').addEventListener('click', () => { if (joined) { $('chat-input').focus(); $('chat-form').scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } });
-  $('select-btn').addEventListener('click', () => { const side = $('arena-side'); side.classList.toggle('open'); if (side.classList.contains('open')) side.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); });
-  const gbQuery = window.matchMedia('(max-width: 820px)');
-  function applyLcd() {
-    let pref = null;
-    try { pref = localStorage.getItem('arena-lcd'); } catch (e) { /* ignore */ }
-    $('arena-screen').classList.toggle('lcd', pref != null ? pref === '1' : gbQuery.matches);
-  }
-  applyLcd();
-  gbQuery.addEventListener('change', applyLcd);
-  $('lcd-toggle').addEventListener('click', () => {
-    const on = !$('arena-screen').classList.contains('lcd');
-    $('arena-screen').classList.toggle('lcd', on);
-    try { localStorage.setItem('arena-lcd', on ? '1' : '0'); } catch (e) { /* ignore */ }
-    toast(on ? 'LCD mode' : 'Colour mode', 'info');
-  });
+  $('select-btn').addEventListener('click', () => $('arena-side').scrollIntoView({ block: 'start', behavior: 'smooth' }));
   function tryMove(now) {
     if (!joined || !me || encounter || battle) return;
     const dir = heldDir || (keys.size ? [...keys][keys.size - 1] : null);
