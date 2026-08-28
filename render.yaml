@@ -1,29 +1,31 @@
+# STAGING blueprint (branch: dev). Production is the `pokemon-arena` service deployed from `main`.
+# Create this once in Render: New → Blueprint → this repo → branch `dev` → Apply.
 services:
   - type: web
-    name: pokemon-arena
+    name: pokemon-arena-dev
     runtime: node
-    plan: standard          # paid instance: always-on, no cold starts (use `starter` for the $7 tier)
+    plan: starter          # $7/mo always-on; change to `free` if you don't mind cold starts on the test site
     region: oregon
-    numInstances: 1         # keep at 1 — the arena world lives in memory; more instances would split players
+    branch: dev
+    numInstances: 1
     buildCommand: npm ci
     startCommand: node server.js
     healthCheckPath: /api/stats
-    autoDeploy: true
-    domains:
-      - pokemoncto.com
-      - www.pokemoncto.com
+    autoDeploy: true       # every push to `dev` redeploys the test site
     envVars:
       - key: NODE_ENV
-        value: production
+        value: staging     # not "production" → the dev faucet below is allowed
       - key: NODE_VERSION
         value: "22"
-      - key: VAULT_SECRET_KEY   # base58 or JSON-array secret key of the arena vault wallet (set in the dashboard, never commit it)
+      - key: ARENA_DEV_FAUCET
+        value: "1"         # "+10k (dev)" button in the Account panel credits test balance without real tokens
+      - key: VAULT_SECRET_KEY   # leave unset on staging: a throwaway vault is generated on the disk below
         sync: false
-      - key: SOLANA_RPC         # optional: a dedicated RPC (Helius/QuickNode) — the public one rate-limits deposit polling
+      - key: SOLANA_RPC
         sync: false
-      - key: ADMIN_KEY          # optional: enables GET /api/admin/vault?key=… (vault + ledger summary)
+      - key: ADMIN_KEY
         sync: false
     disk:
-      name: arena-data
-      mountPath: /opt/render/project/src/data   # persists data/hall-of-fame.json across deploys
+      name: arena-dev-data
+      mountPath: /opt/render/project/src/data   # ledger.json + generated vault.json survive deploys
       sizeGB: 1
