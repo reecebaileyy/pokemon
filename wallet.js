@@ -76,6 +76,23 @@ function ixTransferChecked(source, mint, dest, owner, amount, decimals, tokenPro
   });
 }
 
+/** BurnChecked (SPL Token / Token-2022 instruction 15): destroys `amount` base units held in `source`; mint supply drops. */
+function ixBurnChecked(source, mint, owner, amount, decimals, tokenProgram) {
+  const data = Buffer.alloc(10);
+  data[0] = 15; // BurnChecked
+  data.writeBigUInt64LE(BigInt(amount), 1);
+  data[9] = decimals;
+  return new TransactionInstruction({
+    programId: tokenProgram,
+    keys: [
+      { pubkey: source, isSigner: false, isWritable: true },
+      { pubkey: mint, isSigner: false, isWritable: true },
+      { pubkey: owner, isSigner: true, isWritable: false }
+    ],
+    data
+  });
+}
+
 function create(opts) {
   const rpcUrl = opts.rpcUrl || 'https://api.mainnet-beta.solana.com';
   const connection = new Connection(rpcUrl, { commitment: 'confirmed' });
@@ -175,20 +192,7 @@ function create(opts) {
 
   /** Burn `amount` (base units) of the token from the vault — permanently removes it from supply. */
   async function burn(amount) {
-    const data = Buffer.alloc(10);
-    data[0] = 15; // BurnChecked
-    data.writeBigUInt64LE(BigInt(amount), 1);
-    data[9] = decimals;
-    const ix = new TransactionInstruction({
-      programId: tokenProgram,
-      keys: [
-        { pubkey: vaultAta, isSigner: false, isWritable: true },
-        { pubkey: mint, isSigner: false, isWritable: true },
-        { pubkey: vault.publicKey, isSigner: true, isWritable: false }
-      ],
-      data
-    });
-    return sendTx([ix], [vault]);
+    return sendTx([ixBurnChecked(vaultAta, mint, vault.publicKey, amount, decimals, tokenProgram)], [vault]);
   }
 
   async function status() {
@@ -208,4 +212,4 @@ function create(opts) {
   };
 }
 
-module.exports = { create };
+module.exports = { create, ixBurnChecked, ata, TOKEN_2022, TOKEN_LEGACY };

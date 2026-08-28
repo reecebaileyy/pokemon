@@ -544,6 +544,7 @@ const server = http.createServer((req, res) => {
   if (urlPath === '/auth/x/callback') return void xCallback(req, res, url);
   if (urlPath === '/auth/x/fake' && X_FAKE) return xFake(req, res, url);
   if (urlPath === '/api/stats') return json({ online: players.size, wilds: wilds.size, leaderboard: leaderboard(10), hallOfFame: hallOfFame(10), season: seasonView(null) });
+  if (urlPath === '/api/burns') return json(burnsView());
   if (urlPath === '/api/token') return void getTokenMetrics().then(d => json(d, 'public, max-age=15'));
   if (urlPath === '/api/chart') return void getChart(url.searchParams.get('tf')).then(d => json(d, 'public, max-age=30'));
   if (urlPath === '/api/blockhash') return void rpc('getLatestBlockhash', [{ commitment: 'confirmed' }]).then(r => json({ blockhash: r.result.value.blockhash, lastValidBlockHeight: r.result.value.lastValidBlockHeight })).catch(e => json({ error: e.message }));
@@ -810,7 +811,17 @@ async function runBurn() {
   finally { burning = false; }
 }
 setInterval(() => { if (BigInt(ledger.pendingBurn || '0') > 0n) scheduleBurn(); }, 5 * 60000);
-function burnView() { const last = ledger.burns[ledger.burns.length - 1]; return { total: toWhole(ledger.burned || '0'), pending: toWhole(ledger.pendingBurn || '0'), count: ledger.burns.length, last: last ? { amount: toWhole(last.amount), signature: last.signature, at: last.at } : null }; }
+const burnRow = b => ({ amount: toWhole(b.amount), signature: b.signature, at: b.at });
+function burnView() { const last = ledger.burns[ledger.burns.length - 1]; return { total: toWhole(ledger.burned || '0'), pending: toWhole(ledger.pendingBurn || '0'), count: ledger.burns.length, last: last ? burnRow(last) : null, recent: ledger.burns.slice(-3).reverse().map(burnRow) }; }
+/** Public audit trail: every PokéStore burn with its on-chain signature, plus what is still queued. */
+function burnsView() {
+  return {
+    mint: TOKEN_MINT, tokenProgram: vault ? vault.tokenProgram : null, vault: vault ? vault.vaultPubkey : null, vaultTokenAccount: vault ? vault.vaultAta : null,
+    totalBurned: toWhole(ledger.burned || '0'), pendingBurn: toWhole(ledger.pendingBurn || '0'), count: ledger.burns.length,
+    burns: ledger.burns.slice().reverse().map(b => Object.assign(burnRow(b), { solscan: `https://solscan.io/tx/${b.signature}` })),
+    howToVerify: 'Open any signature on Solscan: the transaction contains a single Token-2022 "BurnChecked" instruction from the vault token account; the mint supply drops by the amount. Or run: node scripts/verify-burn.js <signature>'
+  };
+}
 
 // ---------- Battles (with optional $POKEMON stakes) ----------
 const distance = (a, b) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));

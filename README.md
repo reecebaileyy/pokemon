@@ -88,6 +88,13 @@ up), `SOLANA_RPC` (use Helius/QuickNode in production), `TOKEN_MINT` / `TOKEN_DE
 `ADMIN_KEY` (enables `GET /api/admin/vault?key=…`), `ARENA_DEV_FAUCET=1` (non-production only: `dev_credit` message
 adds balance for testing).
 
+**Verifying burns** — every PokéStore purchase is burned from the vault with a Token-2022 `BurnChecked` (batched about
+once a minute). Audit trail: `GET /api/burns` lists every burn with its signature; the Season card links the latest ones.
+To check on-chain yourself: open a signature on Solscan (one `BurnChecked` instruction, tokens leave the vault account and
+no account receives them, mint supply drops) or run `node scripts/verify-burn.js <signature>` /
+`node scripts/verify-burn.js --site https://www.pokemoncto.com` (checks every reported burn against the chain).
+Burns need real tokens in the vault: on staging the faucet balance is fake, so purchases queue until someone deposits.
+
 **Sign in with X (Twitter)** — an X login *is* a smart wallet: the account `x:<userId>` gets its own deposit address,
 balance, stakes and store like any other. Setup (free X API tier is enough — it only calls `GET /2/users/me` once per login):
 1. developer.x.com → create a project + app → *User authentication settings*: App permissions **Read**, Type of App

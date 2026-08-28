@@ -557,3 +557,6 @@ i.shiny { color: var(--accent); font-style: normal; font-size: 0.75em; margin-le
 .btn-x svg { flex: none; }
 .account-card .acct-avatar { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; flex: none; border: 1px solid var(--line-2); }
 .account-card .acct-type.handle { text-transform: none; letter-spacing: 0; }
+.season-card .burn-list { display: grid; gap: 0.15rem; margin-top: 0.3rem; font-family: var(--mono); font-size: 0.7rem; }
+.season-card .burn-list a { color: var(--muted); }
+.season-card .burn-list a:hover { color: var(--accent); }

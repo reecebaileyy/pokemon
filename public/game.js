@@ -326,7 +326,9 @@
       `<ol>${top.length ? top.map((t, i) => `<li class="${account && t.id === account.id ? 'me' : ''}"><span class="pl">${i + 1}</span>${t.mon ? spriteImg(t.mon, 24) : ''}<span class="nm">${esc(t.name)}</span><span class="pts">${fmt(t.points)} pts</span></li>`).join('') : '<li class="muted">No points yet this season — catch and win to lead.</li>'}</ol>` +
       (account ? `<div class="how">You: ${fmt(season.mine || 0)} pts this season.</div>` : '') +
       `<div class="how">${season.feePct}% of every staked pot is taken as fee; ${season.poolShare}% of that feeds this pool.</div>` +
-      (season.burn ? `<div class="burn"><b>🔥 ${fmt(season.burn.total)} ${TICKER} burned</b> by the PokéStore${season.burn.pending ? ` · ${fmt(season.burn.pending)} queued` : ''}${season.burn.last ? ` · <a href="https://solscan.io/tx/${esc(season.burn.last.signature)}" target="_blank" rel="noopener">last burn ↗</a>` : ''}</div>` : '');
+      (season.burn ? `<div class="burn"><b>🔥 ${fmt(season.burn.total)} ${TICKER} burned</b> by the PokéStore${season.burn.pending ? ` · ${fmt(season.burn.pending)} queued` : ''}` +
+        ((season.burn.recent || []).length ? `<div class="burn-list">${season.burn.recent.map(b => `<a href="https://solscan.io/tx/${esc(b.signature)}" target="_blank" rel="noopener" title="${new Date(b.at).toLocaleString()}">${fmt(b.amount)} burned · ${esc(b.signature.slice(0, 8))}… ↗</a>`).join('')}<a href="/api/burns" target="_blank" rel="noopener">full burn log ↗</a></div>` : '') +
+        `</div>` : '');
     clearTimeout(seasonTimer); seasonTimer = setTimeout(renderSeason, 30000);
   }
   function renderLeaderboard() {
