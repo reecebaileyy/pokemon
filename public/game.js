@@ -346,11 +346,10 @@
     wrap.innerHTML = `<div class="acct-head">${avatar}<span class="acct-name">${esc(account.name)}</span><span class="acct-type${account.type === 'x' ? ' handle' : ''}">${esc(type)}</span></div>` +
       `<div class="acct-bal">${fmt(account.balance)}<small>${TICKER}</small></div>` +
       `<div class="acct-meta"><span>${fmt(account.seasonPoints)} season pts</span><span>${fmt(account.score)} all-time</span></div>` +
-      `<div class="acct-btns"><button class="btn btn-primary btn-sm" id="acct-deposit" type="button">Deposit</button><button class="btn btn-sm" id="acct-withdraw" type="button">Withdraw</button>${economy.devFaucet ? '<button class="btn btn-sm" id="acct-faucet" type="button">+10k (dev)</button>' : ''}<button class="btn btn-ghost btn-sm" id="acct-logout" type="button">Sign out</button></div>`;
+      `<div class="acct-btns"><button class="btn btn-primary btn-sm" id="acct-deposit" type="button">Deposit</button><button class="btn btn-sm" id="acct-withdraw" type="button">Withdraw</button><button class="btn btn-ghost btn-sm" id="acct-logout" type="button">Sign out</button></div>`;
     $('acct-deposit').addEventListener('click', openDeposit);
     $('acct-withdraw').addEventListener('click', () => { fillWithdraw(); setStatus('withdraw-status', '', ''); openModal('modal-withdraw'); });
     $('acct-logout').addEventListener('click', () => { send({ t: 'logout' }); storage.del('arena-session'); walletProvider = null; walletPubkey = null; });
-    if (economy.devFaucet) $('acct-faucet').addEventListener('click', () => send({ t: 'dev_credit', amount: 10000 }));
   }
   let seasonTimer = null;
   /** Live burn numbers in the on-page Docs section (works for visitors who never enter the arena). */

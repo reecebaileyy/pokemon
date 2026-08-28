@@ -18,7 +18,7 @@ services:
       - key: NODE_VERSION
         value: "22"
       - key: ARENA_DEV_FAUCET
-        value: "1"         # "+10k (dev)" button in the Account panel credits test balance without real tokens
+        value: "1"         # lets the automated test suites credit balances (dev_credit message); there is no in-game button
       - key: VAULT_SECRET_KEY   # leave unset on staging: a throwaway vault is generated on the disk below
         sync: false
       - key: SOLANA_RPC
