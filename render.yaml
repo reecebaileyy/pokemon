@@ -1,11 +1,20 @@
 services:
   - type: web
-    name: pokecto-arena
+    name: pokemon-arena
     runtime: node
-    plan: free
+    plan: standard          # paid instance: always-on, no cold starts (use `starter` for the $7 tier)
+    region: oregon
+    numInstances: 1         # keep at 1 — the arena world lives in memory; more instances would split players
     buildCommand: npm ci
     startCommand: node server.js
     healthCheckPath: /api/stats
+    autoDeploy: true
     envVars:
       - key: NODE_ENV
         value: production
+      - key: NODE_VERSION
+        value: "22"
+    disk:
+      name: arena-data
+      mountPath: /opt/render/project/src/data   # persists data/hall-of-fame.json across deploys
+      sizeGB: 1
