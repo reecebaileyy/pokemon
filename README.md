@@ -81,12 +81,26 @@ Everything below is server-authoritative (`server.js` + `wallet.js`), persisted 
 - **Season prize pool** — `prizePoolShare`% of every fee accumulates in a pool; every `seasonHours` the pool pays the
   season's top 3 by points (50/30/20 %) and points reset. The remainder of the fee stays in the vault as treasury.
 - **Items** — potions / X Attack / X Defend are battle turns, Great/Ultra Balls change catch odds. Bought with
-  PokéCoins earned by catching and winning, so guests get the whole game too.
+  $POKEMON from your arena balance. Every token spent in the PokéStore is burned on-chain (100 %, batched roughly once a minute; the burn tx is linked in the Season card).
 
 **Env vars**: `VAULT_SECRET_KEY` (base58 or JSON array; if unset a keypair is generated into `data/vault.json` — back it
 up), `SOLANA_RPC` (use Helius/QuickNode in production), `TOKEN_MINT` / `TOKEN_DECIMALS` (default from config, 6),
 `ADMIN_KEY` (enables `GET /api/admin/vault?key=…`), `ARENA_DEV_FAUCET=1` (non-production only: `dev_credit` message
 adds balance for testing).
+
+**Sign in with X (Twitter)** — an X login *is* a smart wallet: the account `x:<userId>` gets its own deposit address,
+balance, stakes and store like any other. Setup (free X API tier is enough — it only calls `GET /2/users/me` once per login):
+1. developer.x.com → create a project + app → *User authentication settings*: App permissions **Read**, Type of App
+   **Web App, Automated App or Bot**, Callback URI `https://www.pokemoncto.com/auth/x/callback` (add
+   `https://<your-render-host>/auth/x/callback` for staging), Website URL `https://www.pokemoncto.com`.
+2. Copy the **OAuth 2.0 Client ID** (and Client Secret) into the Render env vars `X_CLIENT_ID` / `X_CLIENT_SECRET`.
+   Optional: `X_REDIRECT_URL` if the callback must differ from `<request origin>/auth/x/callback`, `PUBLIC_URL` to pin
+   the origin behind a proxy.
+3. Until an app is configured, staging can set `X_FAKE_LOGIN=1` (ignored in production and whenever `X_CLIENT_ID`
+   is set): the button opens a stub page where any handle signs in, so the full flow can be tested.
+Flow: `/auth/x/start` (PKCE + state, 10-minute expiry) → x.com consent → `/auth/x/callback` exchanges the code, reads
+the profile, issues a 30-day session token and hands it back to the game tab (popup `postMessage`, or a redirect on
+phones). No X tokens are stored; only the user id, handle and avatar URL.
 
 **Operator notes**: the vault is a hot wallet — keep only what withdrawals need and sweep the rest to cold storage;
 `/api/admin/vault` shows liabilities (sum of balances) vs vault holdings. Token staking on a game with chance is

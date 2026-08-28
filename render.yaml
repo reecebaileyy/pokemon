@@ -25,6 +25,12 @@ services:
         sync: false
       - key: ADMIN_KEY
         sync: false
+      - key: X_FAKE_LOGIN
+        value: "1"         # staging only: "Continue with X" opens a stub page (type any handle) until a real X app is configured
+      - key: X_CLIENT_ID      # from developer.x.com → your app → Keys and tokens → OAuth 2.0 Client ID. Setting it turns off the stub.
+        sync: false
+      - key: X_CLIENT_SECRET  # OAuth 2.0 Client Secret (only needed if the app type is "Web App" / confidential)
+        sync: false
     disk:
       name: arena-dev-data
       mountPath: /opt/render/project/src/data   # ledger.json + generated vault.json survive deploys

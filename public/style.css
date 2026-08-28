@@ -298,6 +298,15 @@ i.shiny { color: var(--accent); font-style: normal; font-size: 0.75em; margin-le
 .lb .pts { font-family: var(--mono); font-size: 0.78rem; color: var(--muted); }
 .lb li.me .nm { color: var(--accent); }
 
+/* Panels under the game (store, season, hall of fame) */
+.arena-under { grid-column: 1 / -1; display: grid; grid-template-columns: 1.5fr 1fr 1fr; gap: 1rem; align-items: start; }
+.wallet-links { display: grid; gap: 0.4rem; }
+.wallet-links a { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; background: var(--surface-2); border: 1px solid var(--line-2); border-radius: 10px; padding: 0.6rem 0.8rem; font-weight: 600; font-size: 0.88rem; }
+.wallet-links a span { color: var(--muted); font-weight: 500; font-size: 0.78rem; }
+.wallet-links p { font-size: 0.8rem; color: var(--muted); }
+.modal-status:empty { display: none; }
+.deposit-wallet.hidden + .modal-status { margin-top: 0; }
+
 /* Account / economy panels */
 .account-card { font-size: 0.85rem; display: grid; gap: 0.55rem; }
 .account-card .acct-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
@@ -314,7 +323,7 @@ i.shiny { color: var(--accent); font-style: normal; font-size: 0.75em; margin-le
 .bag .coins b { font-family: var(--mono); font-size: 1rem; }
 .bag .inv { display: flex; flex-wrap: wrap; gap: 0.35rem; }
 .bag .inv span { background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 0.2em 0.55em; font-weight: 600; font-size: 0.78rem; }
-.bag .shop { display: grid; gap: 0.35rem; }
+.bag .shop { display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); gap: 0.35rem 1rem; }
 .bag .shop-item { display: flex; align-items: center; gap: 0.5rem; }
 .bag .shop-item .ic { width: 22px; text-align: center; }
 .bag .shop-item .nm { flex: 1; min-width: 0; }
@@ -421,6 +430,9 @@ i.shiny { color: var(--accent); font-style: normal; font-size: 0.75em; margin-le
 @media (max-width: 1000px) {
   .arena { grid-template-columns: 1fr; }
   .arena-side { grid-template-columns: 1fr 1fr; }
+  .arena-side .panel:last-child { grid-column: 1 / -1; }
+  .arena-under { grid-template-columns: 1fr 1fr; }
+  .arena-under .panel:first-child { grid-column: 1 / -1; }
   .proof-grid { grid-template-columns: repeat(2, 1fr); }
   .evo-row { grid-template-columns: repeat(2, 1fr); }
 }
@@ -442,6 +454,8 @@ i.shiny { color: var(--accent); font-style: normal; font-size: 0.75em; margin-le
   .section { padding: 2.5rem 20px; }
   .container { padding: 0 20px; }
   .arena-side { grid-template-columns: 1fr; }
+  .arena-under { grid-template-columns: 1fr; }
+  .arena-under .panel:first-child { grid-column: auto; }
   .proof-grid, .evo-row { grid-template-columns: 1fr; }
   .join-row { grid-template-columns: 1fr auto; }
   .join-row .btn { grid-column: 1 / -1; }
@@ -474,6 +488,7 @@ i.shiny { color: var(--accent); font-style: normal; font-size: 0.75em; margin-le
   .proof span { font-size: 0.74rem; margin-top: 0.15rem; }
   .cols { gap: 0.7rem; }
   .cols > div { padding: 1.15rem 1.15rem; }
+  .arena-under { grid-template-columns: 1fr; }
   .lore { grid-template-columns: 1fr; gap: 1.2rem; }
   .lore-chapters li { padding: 1rem 1.05rem; gap: 0.8rem; }
   .lore-frame { padding: 0.45rem; }
@@ -533,3 +548,12 @@ i.shiny { color: var(--accent); font-style: normal; font-size: 0.75em; margin-le
 }
 
 @media (prefers-reduced-motion: reduce) { .reveal { transition: none; opacity: 1; transform: none; } }
+.bag .burn-note { color: var(--muted); font-size: 0.72rem; border-top: 1px dashed var(--line-2); padding-top: 0.5rem; }
+.season-card .burn { color: var(--muted); font-size: 0.74rem; border-top: 1px dashed var(--line-2); padding-top: 0.45rem; }
+.season-card .burn b { color: var(--text); }
+.season-card .burn a { color: var(--accent); }
+.btn-x { display: inline-flex; align-items: center; justify-content: center; gap: 0.5em; background: #000; color: #fff; border: 1px solid #333; }
+.btn-x:hover { background: #111; border-color: #555; }
+.btn-x svg { flex: none; }
+.account-card .acct-avatar { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; flex: none; border: 1px solid var(--line-2); }
+.account-card .acct-type.handle { text-transform: none; letter-spacing: 0; }

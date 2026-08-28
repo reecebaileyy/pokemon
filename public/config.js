@@ -47,7 +47,7 @@ window.SITE_CONFIG = {
       },
       {
         title: 'Trading feeds the fire',
-        text: 'The creator wallet is the Solana incinerator. The creator fee from every trade is sent there, where no one can ever claim it — volume doesn\'t enrich a dev, it disappears. Minting is revoked, so supply only moves one way: <b id="lore-burned">4.7M</b> $POKEMON has already been burned.'
+        text: 'The creator wallet is the Solana incinerator. The creator fee from every trade is sent there, where no one can ever claim it — volume doesn\'t enrich a dev, it disappears. Minting is revoked, so supply only moves one way: <b id="lore-burned">4.7M</b> $POKEMON has already been burned — and every token spent in the arena\'s PokéStore is burned too.'
       }
     ]
   },
@@ -63,7 +63,8 @@ window.SITE_CONFIG = {
     seasonHours: 24,          // prize pool pays the season's top 3 (50 / 30 / 20 %) every N hours
     minWithdraw: 1000,
     maxWithdrawPerDay: 2000000,
-    startingCoins: 100        // PokéCoins for new trainers (buys potions and balls)
+    // PokéStore prices in whole $POKEMON (defaults live in pokedex.js). Every purchase is burned on-chain from the vault.
+    itemPrices: { potion: 500, superpotion: 1200, hyperpotion: 2800, fullrestore: 5000, xattack: 1800, xdefend: 1800, greatball: 1000, ultraball: 2500 }
   },
 
   // Fallback numbers, only shown if the live feed is unreachable.

@@ -61,7 +61,8 @@ const SITE = loadSiteConfig();
 const TOKEN_MINT = process.env.TOKEN_MINT || SITE.contract || '';
 const SOLANA_RPC = process.env.SOLANA_RPC || 'https://api.mainnet-beta.solana.com';
 const TOKEN_DECIMALS = Number(process.env.TOKEN_DECIMALS || 6);
-const ECON = Object.assign({ stakes: true, minStake: 1000, maxStake: 5000000, feePct: 4, prizePoolShare: 75, seasonHours: 24, minWithdraw: 1000, maxWithdrawPerDay: 2000000, startingCoins: 100 }, SITE.economy || {});
+const ECON = Object.assign({ stakes: true, minStake: 1000, maxStake: 5000000, feePct: 4, prizePoolShare: 75, seasonHours: 24, minWithdraw: 1000, maxWithdrawPerDay: 2000000, itemPrices: {}, burnIntervalMs: 60000 }, SITE.economy || {});
+const itemPrice = item => Math.max(0, Math.floor(Number((ECON.itemPrices || {})[item.id] != null ? ECON.itemPrices[item.id] : item.price)));
 const UNIT = 10n ** BigInt(TOKEN_DECIMALS);
 const toBase = whole => BigInt(Math.floor(Number(whole))) * UNIT;
 const toWhole = base => Number(BigInt(base) / UNIT) + Number(BigInt(base) % UNIT) / Number(UNIT);
@@ -168,7 +169,7 @@ if (TOKEN_MINT) { getTokenMetrics().then(() => getChart('15m')); setInterval(get
 
 // ---------- Ledger (persistent accounts, balances, seasons) ----------
 const now = () => Date.now();
-let ledger = { accounts: {}, sessions: {}, processedSigs: {}, nextDepositIndex: 1, season: null, pool: '0', treasury: '0', withdrawals: [], deposits: [], prizes: [] };
+let ledger = { accounts: {}, sessions: {}, processedSigs: {}, nextDepositIndex: 1, season: null, pool: '0', treasury: '0', withdrawals: [], deposits: [], prizes: [], pendingBurn: '0', burned: '0', burns: [] };
 try { if (fs.existsSync(LEDGER_FILE)) ledger = Object.assign(ledger, JSON.parse(fs.readFileSync(LEDGER_FILE, 'utf8'))); } catch (e) { console.error('ledger load failed', e.message); }
 let ledgerDirty = false, ledgerTimer = null;
 function saveLedger(sync) {
@@ -215,7 +216,7 @@ function seasonTop(n) {
 }
 function accountMon(acc) { const m = (acc.party || [])[acc.active || 0] || acc.party && acc.party[0]; return m ? { dex: m.dex, shiny: !!m.shiny } : null; }
 function seasonView(p) {
-  return { number: ledger.season.number, endsAt: ledger.season.end, pool: toWhole(ledger.pool), top: seasonTop(10), mine: p && p.accountId ? (ledger.season.points[p.accountId] || 0) : 0, feePct: ECON.feePct, poolShare: ECON.prizePoolShare, seasonHours: ECON.seasonHours };
+  return { number: ledger.season.number, endsAt: ledger.season.end, pool: toWhole(ledger.pool), top: seasonTop(10), mine: p && p.accountId ? (ledger.season.points[p.accountId] || 0) : 0, feePct: ECON.feePct, poolShare: ECON.prizePoolShare, seasonHours: ECON.seasonHours, burn: burnView() };
 }
 function addSeasonPoints(p, pts) {
   if (!p.accountId) return;
@@ -249,9 +250,11 @@ function broadcastSeason() { for (const p of players.values()) send(p, { t: 'sea
 
 // ---------- Accounts & auth ----------
 const USERNAME_RE = /^[A-Za-z0-9_]{3,16}$/;
-function hashPassword(password, salt) { return crypto.scryptSync(password, salt, 32).toString('hex'); }
+// Async scrypt: hashing never blocks the game loop, even when many people sign in at once.
+const hashPassword = (password, salt) => new Promise((res, rej) => crypto.scrypt(password, salt, 32, (err, key) => err ? rej(err) : res(key.toString('hex'))));
+const AUTH_LOCK_AFTER = 6, AUTH_LOCK_MS = 60000;
 function newAccount(id, type, name, extra) {
-  const acc = Object.assign({ id, type, name, balance: '0', coins: ECON.startingCoins, inventory: {}, party: null, active: 0, score: 0, catches: 0, wins: 0, losses: 0, createdAt: now(), lastSeen: now(), depositIndex: ledger.nextDepositIndex++, withdrawn: [] }, extra || {});
+  const acc = Object.assign({ id, type, name, balance: '0', inventory: {}, party: null, active: 0, score: 0, catches: 0, wins: 0, losses: 0, createdAt: now(), lastSeen: now(), depositIndex: ledger.nextDepositIndex++, withdrawn: [] }, extra || {});
   ledger.accounts[id] = acc;
   saveLedger();
   return acc;
@@ -270,8 +273,8 @@ function accountView(p) {
   const dayAgo = now() - 86400000;
   const withdrawnToday = (acc.withdrawn || []).filter(w => w.at > dayAgo).reduce((s, w) => s + w.amount, 0);
   return {
-    id: acc.id, type: acc.type, name: acc.name, walletPubkey: acc.pubkey || null,
-    balance: toWhole(bal(acc)), coins: acc.coins, inventory: acc.inventory || {},
+    id: acc.id, type: acc.type, name: acc.name, walletPubkey: acc.pubkey || null, handle: acc.xUsername ? '@' + acc.xUsername : null, avatar: acc.avatar || null,
+    balance: toWhole(bal(acc)), inventory: acc.inventory || {},
     depositAddress: vault ? vault.depositAddress(acc.depositIndex) : null,
     seasonPoints: ledger.season.points[acc.id] || 0, score: acc.score, withdrawnToday, token: p.sessionToken || null
   };
@@ -282,7 +285,7 @@ function sendAccount(p) { const v = accountView(p); if (v) send(p, { t: 'account
 function syncAccount(p) {
   const acc = p.accountId && ledger.accounts[p.accountId];
   if (!acc) return;
-  acc.party = p.party; acc.active = p.active; acc.coins = p.coins; acc.inventory = p.inventory;
+  acc.party = p.party; acc.active = p.active; acc.inventory = p.inventory;
   acc.score = p.score; acc.catches = p.catches; acc.wins = p.wins; acc.losses = p.losses; acc.lastSeen = now();
   saveLedger();
 }
@@ -292,12 +295,12 @@ function attachAccount(p, acc) {
   p.accountId = acc.id;
   if (acc.party && acc.party.length) {
     p.party = acc.party; p.active = Math.min(acc.active || 0, acc.party.length - 1);
-    p.coins = acc.coins; p.inventory = acc.inventory || {};
+    p.inventory = acc.inventory || {};
     p.score = acc.score; p.catches = acc.catches; p.wins = acc.wins; p.losses = acc.losses;
   } else { syncAccount(p); }
-  if (acc.type === 'wallet' && !acc.name) acc.name = p.name;
+  // The account's canonical name never changes; a "#2" suffix only appears for this session if another tab still holds the name.
   p.name = uniqueName(acc.name || p.name, p);
-  acc.name = p.name;
+  if (!acc.name) acc.name = p.name;
   p.sessionToken = issueSession(acc.id);
   watchDeposits(acc);
   sendAccount(p);
@@ -331,13 +334,24 @@ function handleAuth(p, msg) {
     if (!USERNAME_RE.test(username)) return fail('Username: 3–16 letters, numbers or _');
     if (password.length < 8) return fail('Passphrase must be at least 8 characters.');
     const id = 's:' + username.toLowerCase();
-    let acc = ledger.accounts[id];
-    if (!acc) {
-      if (!msg.create) return fail('No account with that name. Tick "create" to make one.');
-      const salt = crypto.randomBytes(16).toString('hex');
-      acc = newAccount(id, 'smart', username, { salt, passHash: hashPassword(password, salt) });
-    } else if (hashPassword(password, acc.salt) !== acc.passHash) return fail('Wrong passphrase.');
-    return attachAccount(p, acc);
+    const existing = ledger.accounts[id];
+    if (!existing && !msg.create) return fail('No account with that name. Tick "create" to make one.');
+    if (existing && existing.lockUntil && existing.lockUntil > now()) return fail(`Too many wrong passphrases. Try again in ${Math.ceil((existing.lockUntil - now()) / 1000)}s.`);
+    const salt = existing ? existing.salt : crypto.randomBytes(16).toString('hex');
+    hashPassword(password, salt).then(hash => {
+      if (!players.has(p.id)) return; // left while hashing
+      const acc = ledger.accounts[id];
+      if (!acc) return attachAccount(p, newAccount(id, 'smart', username, { salt, passHash: hash }));
+      if (acc.salt !== salt) return handleAuth(p, msg); // created concurrently by another connection — re-verify against it
+      if (hash !== acc.passHash) {
+        acc.failedAuth = (acc.failedAuth || 0) + 1;
+        if (acc.failedAuth >= AUTH_LOCK_AFTER) { acc.lockUntil = now() + AUTH_LOCK_MS; acc.failedAuth = 0; }
+        return fail('Wrong passphrase.');
+      }
+      acc.failedAuth = 0; acc.lockUntil = 0;
+      attachAccount(p, acc);
+    }).catch(e => { console.warn('auth hash failed:', e.message); fail('Sign-in failed. Please try again.'); });
+    return;
   }
   fail('Unknown sign-in type.');
 }
@@ -442,11 +456,93 @@ const MIME = {
   '.ico': 'image/x-icon', '.ogg': 'audio/ogg', '.mp4': 'video/mp4', '.webm': 'video/webm', '.mp3': 'audio/mpeg',
   '.webmanifest': 'application/manifest+json', '.txt': 'text/plain; charset=utf-8', '.woff2': 'font/woff2'
 };
+// Cache-busting stamp for our own JS/CSS: index.html is rewritten to reference `game.js?v=<stamp>` so a deploy never
+// leaves a browser running yesterday's script against today's page. Stamp = hash of the files' contents at boot.
+const ASSET_STAMP = (() => {
+  try {
+    const h = crypto.createHash('sha1');
+    for (const f of fs.readdirSync(PUBLIC_DIR).filter(f => /\.(js|css)$/.test(f)).sort()) h.update(f).update(fs.readFileSync(path.join(PUBLIC_DIR, f)));
+    return h.digest('hex').slice(0, 10);
+  } catch (e) { return String(Date.now()); }
+})();
+
+// ---------- Sign in with X (Twitter): OAuth 2.0 authorization code + PKCE ----------
+// An X login is a smart-wallet account (id "x:<userId>") — same deposit address, balance, stakes and store.
+const X_CLIENT_ID = process.env.X_CLIENT_ID || '';
+const X_CLIENT_SECRET = process.env.X_CLIENT_SECRET || '';
+const X_FAKE = !IS_PROD && !X_CLIENT_ID && process.env.X_FAKE_LOGIN === '1'; // local/staging only: stub login page so the flow can be tested without an X app
+const X_ENABLED = !!X_CLIENT_ID || X_FAKE;
+const oauthStates = new Map(); // state -> { verifier, created }
+const b64url = buf => Buffer.from(buf).toString('base64url');
+const escHtml = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function publicOrigin(req) {
+  if (process.env.PUBLIC_URL) return process.env.PUBLIC_URL.replace(/\/$/, '');
+  const proto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim() || 'http';
+  return `${proto}://${req.headers.host}`;
+}
+const xRedirectUri = req => process.env.X_REDIRECT_URL || `${publicOrigin(req)}/auth/x/callback`;
+const authPage = (body, status) => `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>$POKEMON Arena</title><body style="font-family:system-ui,sans-serif;background:#0b0c10;color:#e5e7eb;display:grid;place-items:center;min-height:100vh;margin:0;padding:1rem;text-align:center;line-height:1.5"><div>${body}</div></body>`;
+function xStart(req, res) {
+  for (const [k, v] of oauthStates) if (now() - v.created > 10 * 60000) oauthStates.delete(k);
+  const state = crypto.randomBytes(16).toString('hex');
+  const verifier = b64url(crypto.randomBytes(32));
+  oauthStates.set(state, { verifier, created: now() });
+  if (X_FAKE) { res.writeHead(302, { Location: `/auth/x/fake?state=${state}`, 'Cache-Control': 'no-store' }); return res.end(); }
+  const challenge = b64url(crypto.createHash('sha256').update(verifier).digest());
+  const q = new URLSearchParams({ response_type: 'code', client_id: X_CLIENT_ID, redirect_uri: xRedirectUri(req), scope: 'users.read tweet.read', state, code_challenge: challenge, code_challenge_method: 'S256' });
+  res.writeHead(302, { Location: `https://x.com/i/oauth2/authorize?${q}`, 'Cache-Control': 'no-store' }); res.end();
+}
+async function xExchange(req, code, verifier) {
+  const body = new URLSearchParams({ code, grant_type: 'authorization_code', client_id: X_CLIENT_ID, redirect_uri: xRedirectUri(req), code_verifier: verifier });
+  const headers = { 'Content-Type': 'application/x-www-form-urlencoded' };
+  if (X_CLIENT_SECRET) headers.Authorization = 'Basic ' + Buffer.from(`${X_CLIENT_ID}:${X_CLIENT_SECRET}`).toString('base64');
+  const tr = await fetch('https://api.x.com/2/oauth2/token', { method: 'POST', headers, body, signal: AbortSignal.timeout(15000) });
+  const tj = await tr.json().catch(() => ({}));
+  if (!tr.ok || !tj.access_token) throw new Error('X did not accept the sign-in (' + (tj.error_description || tj.error || tr.status) + ')');
+  const ur = await fetch('https://api.x.com/2/users/me?user.fields=profile_image_url', { headers: { Authorization: `Bearer ${tj.access_token}` }, signal: AbortSignal.timeout(15000) });
+  const uj = await ur.json().catch(() => ({}));
+  if (!ur.ok || !uj.data || !uj.data.id) throw new Error('could not read your X profile (' + (uj.title || ur.status) + ')');
+  return { id: String(uj.data.id), username: String(uj.data.username || '').slice(0, 15), avatar: String(uj.data.profile_image_url || '').replace('_normal', '_bigger') };
+}
+function xFinish(res, profile) {
+  const id = 'x:' + profile.id;
+  const acc = ledger.accounts[id] || newAccount(id, 'x', profile.username, { xId: profile.id });
+  acc.xUsername = profile.username; acc.avatar = profile.avatar || ''; // refresh on every login
+  const token = issueSession(id);
+  const script = `(function(){var t=${JSON.stringify(token)};try{localStorage.setItem('arena-session',t);}catch(e){}
+if(window.opener&&!window.opener.closed){try{window.opener.postMessage({type:'arena-x-auth',token:t},location.origin);}catch(e){}setTimeout(function(){window.close();},400);}
+else{location.replace('/#arena');}})();`;
+  res.writeHead(200, { 'Content-Type': MIME['.html'], 'Cache-Control': 'no-store' });
+  res.end(authPage(`<p>Signed in as <b>@${escHtml(profile.username)}</b> — returning to the arena…</p><p style="color:#9ca3af;font-size:.9rem">If this window stays open, <a href="/#arena" style="color:#fbbf24">go back to the arena</a>.</p><script>${script}</script>`));
+  console.log(`x login: @${profile.username}`);
+}
+function xError(res, msg) { res.writeHead(200, { 'Content-Type': MIME['.html'], 'Cache-Control': 'no-store' }); res.end(authPage(`<p>X sign-in failed: ${escHtml(msg)}</p><p><a href="/#arena" style="color:#fbbf24">Back to the arena</a></p>`)); }
+async function xCallback(req, res, url) {
+  const state = url.searchParams.get('state') || '', code = url.searchParams.get('code') || '';
+  const st = oauthStates.get(state); oauthStates.delete(state);
+  if (url.searchParams.get('error')) return xError(res, url.searchParams.get('error_description') || url.searchParams.get('error'));
+  if (!st || !code) return xError(res, 'this sign-in link expired — please try again');
+  try { xFinish(res, await xExchange(req, code, st.verifier)); }
+  catch (e) { console.warn('x auth:', e.message); xError(res, e.message.slice(0, 160)); }
+}
+function xFake(req, res, url) {
+  const state = url.searchParams.get('state') || '';
+  const handle = (url.searchParams.get('handle') || '').replace(/[^A-Za-z0-9_]/g, '').slice(0, 15);
+  if (!oauthStates.has(state)) return xError(res, 'this sign-in link expired — please try again');
+  res.setHeader('Cache-Control', 'no-store');
+  if (!handle) { res.writeHead(200, { 'Content-Type': MIME['.html'] }); return res.end(authPage(`<p><b>Staging stand-in for X login</b><br><span style="color:#9ca3af">No X app is configured on this server, so type any handle to simulate signing in.</span></p><form><input type="hidden" name="state" value="${escHtml(state)}"><input name="handle" placeholder="X handle" maxlength="15" autofocus style="padding:.6rem .8rem;border-radius:8px;border:1px solid #374151;background:#111827;color:#fff"> <button style="padding:.6rem 1rem;border-radius:8px;border:0;background:#fbbf24;font-weight:700">Sign in</button></form>`)); }
+  oauthStates.delete(state);
+  xFinish(res, { id: 'fake-' + handle.toLowerCase(), username: handle, avatar: '' });
+}
+
 const server = http.createServer((req, res) => {
   let url;
   try { url = new URL(req.url, 'http://x'); } catch (e) { res.writeHead(400); res.end('Bad request'); return; }
   let urlPath = decodeURIComponent(url.pathname);
   const json = (obj, cache) => { res.writeHead(200, { 'Content-Type': MIME['.json'], 'Cache-Control': cache || 'no-store', 'Access-Control-Allow-Origin': '*' }); res.end(JSON.stringify(obj)); };
+  if (urlPath === '/auth/x/start') { if (!X_ENABLED) { res.writeHead(404, { 'Content-Type': 'text/plain' }); return res.end('X sign-in is not configured on this server.'); } return xStart(req, res); }
+  if (urlPath === '/auth/x/callback') return void xCallback(req, res, url);
+  if (urlPath === '/auth/x/fake' && X_FAKE) return xFake(req, res, url);
   if (urlPath === '/api/stats') return json({ online: players.size, wilds: wilds.size, leaderboard: leaderboard(10), hallOfFame: hallOfFame(10), season: seasonView(null) });
   if (urlPath === '/api/token') return void getTokenMetrics().then(d => json(d, 'public, max-age=15'));
   if (urlPath === '/api/chart') return void getChart(url.searchParams.get('tf')).then(d => json(d, 'public, max-age=30'));
@@ -454,7 +550,7 @@ const server = http.createServer((req, res) => {
   if (urlPath === '/api/admin/vault') {
     if (!process.env.ADMIN_KEY || url.searchParams.get('key') !== process.env.ADMIN_KEY) { res.writeHead(403); return res.end('forbidden'); }
     const total = Object.values(ledger.accounts).reduce((s, a) => s + bal(a), 0n);
-    return void (vault ? vault.status() : Promise.resolve(null)).then(st => json({ vault: st, accounts: Object.keys(ledger.accounts).length, liabilities: toWhole(total), pool: toWhole(ledger.pool), treasury: toWhole(ledger.treasury), pendingSweeps: [...pendingSweeps], recentDeposits: ledger.deposits.slice(-10), recentWithdrawals: ledger.withdrawals.slice(-10), prizes: ledger.prizes.slice(-5) }));
+    return void (vault ? vault.status() : Promise.resolve(null)).then(st => json({ vault: st, accounts: Object.keys(ledger.accounts).length, liabilities: toWhole(total), pool: toWhole(ledger.pool), treasury: toWhole(ledger.treasury), burn: burnView(), recentBurns: ledger.burns.slice(-10), pendingSweeps: [...pendingSweeps], recentDeposits: ledger.deposits.slice(-10), recentWithdrawals: ledger.withdrawals.slice(-10), prizes: ledger.prizes.slice(-5) }));
   }
   if (urlPath === '/') urlPath = '/index.html';
   const filePath = path.normalize(path.join(PUBLIC_DIR, urlPath));
@@ -463,7 +559,16 @@ const server = http.createServer((req, res) => {
     if (err || !st.isFile()) { res.writeHead(404, { 'Content-Type': 'text/plain' }); res.end('404 — a wild 404 appeared!'); return; }
     const ext = path.extname(filePath).toLowerCase();
     const isAsset = urlPath.startsWith('/assets/');
-    const headers = { 'Content-Type': MIME[ext] || 'application/octet-stream', 'Cache-Control': ext === '.html' ? 'no-cache' : isAsset ? 'public, max-age=604800, immutable' : 'public, max-age=300', 'Accept-Ranges': 'bytes' };
+    const headers = { 'Content-Type': MIME[ext] || 'application/octet-stream', 'Cache-Control': ext === '.html' ? 'no-cache' : (isAsset || url.searchParams.get('v') === ASSET_STAMP) ? 'public, max-age=604800, immutable' : 'public, max-age=60', 'Accept-Ranges': 'bytes' };
+    if (ext === '.html') {
+      fs.readFile(filePath, 'utf8', (e, html) => {
+        if (e) { res.writeHead(500); return res.end(); }
+        const out = html.replace(/(src|href)="([a-z0-9_-]+\.(?:js|css))"/g, `$1="$2?v=${ASSET_STAMP}"`);
+        res.writeHead(200, Object.assign(headers, { 'Content-Length': Buffer.byteLength(out) }));
+        res.end(req.method === 'HEAD' ? undefined : out);
+      });
+      return;
+    }
     const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || '');
     if (range && (range[1] || range[2])) {
       const start = range[1] ? Number(range[1]) : Math.max(0, st.size - Number(range[2]));
@@ -578,8 +683,8 @@ let lbDirty = true;
 setInterval(() => { if (!lbDirty) return; lbDirty = false; broadcast({ t: 'leaderboard', list: leaderboard(10), hallOfFame: hallOfFame(10) }); broadcastSeason(); }, 2000);
 setInterval(() => broadcastAll({ t: 'stats', online: players.size, wilds: wilds.size }), 10000);
 
-/** Award points: score (all-time), PokéCoins, and season points. */
-function award(p, pts) { p.score += pts; p.coins += pts; addSeasonPoints(p, pts); lbDirty = true; }
+/** Award points: score (all-time) and season points. */
+function award(p, pts) { p.score += pts; addSeasonPoints(p, pts); lbDirty = true; }
 
 // ---------- Evolution ----------
 function checkEvolutions(p) {
@@ -651,7 +756,7 @@ function handleThrow(p, quality, ball) {
     const points = sp.points * (mon.shiny ? 3 : 1) + (isNew ? 5 : 0);
     award(p, points); p.catches += 1;
     clearTimeout(enc.timer); p.encounter = null;
-    send(p, { t: 'catch_result', success: true, mon, points, isNew, quality, ball: ballUsed, party: p.party, coins: p.coins, inventory: p.inventory });
+    send(p, { t: 'catch_result', success: true, mon, points, isNew, quality, ball: ballUsed, party: p.party, inventory: p.inventory });
     checkEvolutions(p); syncAccount(p); recordHall(p);
     broadcast({ t: 'player_update', player: publicPlayer(p) });
     if (sp.rarity === 'legendary') broadcast({ t: 'announce', kind: 'legendary', text: `${p.name} caught a legendary ${sp.name}!` });
@@ -661,17 +766,51 @@ function handleThrow(p, quality, ball) {
   else send(p, { t: 'catch_result', success: false, dex: sp.dex, throwsLeft: enc.throwsLeft, fled: false, ball: ballUsed, inventory: p.inventory });
 }
 
-// ---------- Shop ----------
+// ---------- PokéStore (paid in $POKEMON; everything spent is burned on-chain) ----------
 function handleBuy(p, msg) {
   const item = Dex.ITEMS[msg.item];
   const qty = clamp(Math.floor(Number(msg.qty) || 1), 1, 10);
   if (!item) return send(p, { t: 'shop_result', ok: false, error: 'Unknown item.' });
-  const cost = item.cost * qty;
-  if (p.coins < cost) return send(p, { t: 'shop_result', ok: false, error: `Not enough PokéCoins (${cost} needed).` });
-  p.coins -= cost; p.inventory[item.id] = (p.inventory[item.id] || 0) + qty;
-  syncAccount(p);
-  send(p, { t: 'shop_result', ok: true, item: item.id, qty, coins: p.coins, inventory: p.inventory });
+  const acc = p.accountId && ledger.accounts[p.accountId];
+  if (!acc) return send(p, { t: 'shop_result', ok: false, error: 'Sign in and deposit $POKEMON to shop.' });
+  if (p.battleId) return send(p, { t: 'shop_result', ok: false, error: 'Finish your battle first.' });
+  const cost = toBase(itemPrice(item) * qty);
+  if (bal(acc) < cost) return send(p, { t: 'shop_result', ok: false, error: `Not enough $POKEMON (${fmt(toWhole(cost))} needed).` });
+  debit(acc, cost);
+  ledger.pendingBurn = (BigInt(ledger.pendingBurn || '0') + cost).toString();
+  p.inventory[item.id] = (p.inventory[item.id] || 0) + qty;
+  syncAccount(p); saveLedger(true);
+  send(p, { t: 'shop_result', ok: true, item: item.id, qty, cost: toWhole(cost), inventory: p.inventory, pendingBurn: toWhole(ledger.pendingBurn) });
+  sendAccount(p);
+  scheduleBurn();
 }
+
+// ---------- Burns: PokéStore revenue is destroyed from the vault, batched to save fees ----------
+let burning = false, burnTimer = null;
+function scheduleBurn() { if (!burnTimer) burnTimer = setTimeout(() => { burnTimer = null; runBurn(); }, Math.min(ECON.burnIntervalMs, 60000)); }
+async function runBurn() {
+  const pending = BigInt(ledger.pendingBurn || '0');
+  if (!vault || burning || pending <= 0n) return;
+  burning = true;
+  try {
+    const held = await vault.vaultTokenBalance();
+    const amount = held < pending ? held : pending; // never burn more than the vault physically holds
+    if (amount <= 0n) { console.warn(`burn: ${toWhole(pending)} pending but the vault holds no tokens yet`); return; }
+    const sig = await vault.burn(amount);
+    ledger.pendingBurn = (pending - amount).toString();
+    ledger.burned = (BigInt(ledger.burned || '0') + amount).toString();
+    ledger.burns.push({ at: now(), amount: amount.toString(), signature: sig });
+    ledger.burns = ledger.burns.slice(-100);
+    saveLedger(true);
+    console.log(`🔥 burned ${toWhole(amount)} $POKEMON (${sig.slice(0, 8)}…)`);
+    broadcast({ t: 'announce', kind: 'burn', text: `🔥 ${fmt(toWhole(amount))} $POKEMON from the PokéStore just got burned` });
+    broadcastSeason();
+    if (BigInt(ledger.pendingBurn) > 0n) scheduleBurn();
+  } catch (e) { console.warn('burn failed (will retry):', e.message); setTimeout(scheduleBurn, 5 * 60000); }
+  finally { burning = false; }
+}
+setInterval(() => { if (BigInt(ledger.pendingBurn || '0') > 0n) scheduleBurn(); }, 5 * 60000);
+function burnView() { const last = ledger.burns[ledger.burns.length - 1]; return { total: toWhole(ledger.burned || '0'), pending: toWhole(ledger.pendingBurn || '0'), count: ledger.burns.length, last: last ? { amount: toWhole(last.amount), signature: last.signature, at: last.at } : null }; }
 
 // ---------- Battles (with optional $POKEMON stakes) ----------
 const distance = (a, b) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
@@ -717,7 +856,7 @@ function chooseAction(p, action) {
     if (!item || item.kind === 'ball' || (p.inventory[item.id] || 0) <= 0) return send(p, { t: 'error', msg: "You don't have that item." });
     p.inventory[item.id] -= 1; syncAccount(p);
     side.action = { item: item.id };
-    send(p, { t: 'wallet_state', coins: p.coins, inventory: p.inventory });
+    send(p, { t: 'wallet_state', inventory: p.inventory });
   } else {
     const index = Number(action.move);
     if (!Number.isInteger(index) || index < 0 || index > 3) return;
@@ -852,7 +991,7 @@ function handleMove(p, dir) {
 
 // ---------- WebSocket ----------
 const wss = new WebSocketServer({ server, maxPayload: 4096 });
-const economyView = () => ({ stakes: !!(ECON.stakes && vault), minStake: ECON.minStake, maxStake: ECON.maxStake, feePct: ECON.feePct, prizePoolShare: ECON.prizePoolShare, seasonHours: ECON.seasonHours, minWithdraw: ECON.minWithdraw, maxWithdrawPerDay: ECON.maxWithdrawPerDay, walletAuth: !!vault, mint: TOKEN_MINT, decimals: TOKEN_DECIMALS, tokenProgram: vault ? vault.tokenProgram : null, devFaucet: !IS_PROD && process.env.ARENA_DEV_FAUCET === '1' });
+const economyView = () => ({ stakes: !!(ECON.stakes && vault), minStake: ECON.minStake, maxStake: ECON.maxStake, feePct: ECON.feePct, prizePoolShare: ECON.prizePoolShare, seasonHours: ECON.seasonHours, minWithdraw: ECON.minWithdraw, maxWithdrawPerDay: ECON.maxWithdrawPerDay, walletAuth: !!vault, xLogin: X_ENABLED, xFake: X_FAKE, mint: TOKEN_MINT, decimals: TOKEN_DECIMALS, tokenProgram: vault ? vault.tokenProgram : null, devFaucet: !IS_PROD && process.env.ARENA_DEV_FAUCET === '1', prices: Object.fromEntries(Dex.ITEM_LIST.map(it => [it.id, itemPrice(it)])) });
 
 wss.on('connection', (ws) => {
   ws.isAlive = true;
@@ -872,7 +1011,7 @@ wss.on('connection', (ws) => {
       player = {
         id: uid(), ws, name: uniqueName(msg.name), color: sanitizeColor(msg.color),
         x: SPAWN.x + Math.floor(Math.random() * 6) - 3, y: SPAWN.y + Math.floor(Math.random() * 4) - 2, dir: 'down',
-        party: [{ dex: starterDex, shiny: Math.random() < SHINY_CHANCE }], active: 0, coins: ECON.startingCoins, inventory: {},
+        party: [{ dex: starterDex, shiny: Math.random() < SHINY_CHANCE }], active: 0, inventory: {},
         score: 0, catches: 0, wins: 0, losses: 0, lastMove: 0, lastChat: 0, battleId: null, encounter: null, pendingChallenge: null, accountId: null, sessionToken: null, authNonce: null
       };
       if (!walkable(player.x, player.y)) { player.x = SPAWN.x; player.y = SPAWN.y; }
@@ -881,12 +1020,12 @@ wss.on('connection', (ws) => {
         const acc = ledger.accounts[ledger.sessions[msg.token].id];
         for (const other of players.values()) if (other !== player && other.accountId === acc.id) { other.accountId = null; other.sessionToken = null; send(other, { t: 'account', account: null }); }
         player.accountId = acc.id;
-        if (acc.party && acc.party.length) { player.party = acc.party; player.active = Math.min(acc.active || 0, acc.party.length - 1); player.coins = acc.coins; player.inventory = acc.inventory || {}; player.score = acc.score; player.catches = acc.catches; player.wins = acc.wins; player.losses = acc.losses; }
-        player.name = uniqueName(acc.name || player.name, player); acc.name = player.name;
+        if (acc.party && acc.party.length) { player.party = acc.party; player.active = Math.min(acc.active || 0, acc.party.length - 1); player.inventory = acc.inventory || {}; player.score = acc.score; player.catches = acc.catches; player.wins = acc.wins; player.losses = acc.losses; }
+        player.name = uniqueName(acc.name || player.name, player); if (!acc.name) acc.name = player.name;
         player.sessionToken = msg.token; watchDeposits(acc);
       }
       sendWs(ws, {
-        t: 'welcome', id: player.id, you: publicPlayer(player), party: player.party, active: player.active, coins: player.coins, inventory: player.inventory,
+        t: 'welcome', id: player.id, you: publicPlayer(player), party: player.party, active: player.active, inventory: player.inventory,
         map: { w: MAP_W, h: MAP_H, tiles: map, seed: MAP_SEED }, players: [...players.values()].map(publicPlayer), wilds: [...wilds.values()],
         leaderboard: leaderboard(10), hallOfFame: hallOfFame(10), economy: economyView(), season: seasonView(player), account: player.accountId ? accountView(player) : null
       });

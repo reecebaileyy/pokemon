@@ -1,7 +1,9 @@
 /* ============================================================
-   Browser wallet helper: Phantom / Solflare connect, message
-   signing for sign-in, and one-click $POKEMON deposits
-   (Token-2022 TransferChecked built by hand; the wallet signs).
+   Browser wallet helper: Phantom / Solflare / any injected
+   Solana wallet. Connect, message signing for sign-in, and
+   one-click $POKEMON deposits (Token-2022 TransferChecked built
+   by hand; the wallet signs). On phones, wallets only exist inside
+   their own in-app browser, so we offer deep links into them.
    The Solana library is only downloaded when a deposit is made.
    ============================================================ */
 window.ArenaWallet = (function () {
@@ -10,14 +12,15 @@ window.ArenaWallet = (function () {
   const B58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
 
   function b58encode(bytes) {
-    const digits = [0];
-    for (const b of bytes) {
-      let carry = b;
+    let zeros = 0;
+    while (zeros < bytes.length && bytes[zeros] === 0) zeros++;
+    const digits = [];
+    for (let i = zeros; i < bytes.length; i++) {
+      let carry = bytes[i];
       for (let j = 0; j < digits.length; j++) { carry += digits[j] << 8; digits[j] = carry % 58; carry = (carry / 58) | 0; }
       while (carry) { digits.push(carry % 58); carry = (carry / 58) | 0; }
     }
-    let out = '';
-    for (const b of bytes) { if (b === 0) out += '1'; else break; }
+    let out = '1'.repeat(zeros);
     for (let i = digits.length - 1; i >= 0; i--) out += B58[digits[i]];
     return out;
   }
@@ -36,17 +39,41 @@ window.ArenaWallet = (function () {
   }
 
   function getProvider() {
-    const cands = [window.phantom && window.phantom.solana, window.solflare, window.solana];
-    for (const c of cands) if (c && typeof c.connect === 'function') return c;
+    const cands = [window.phantom && window.phantom.solana, window.solflare, window.backpack, window.solana];
+    for (const c of cands) if (c && typeof c.connect === 'function' && typeof c.signMessage === 'function') return c;
     return null;
   }
+  /** Wallets inject asynchronously; give them a moment before deciding none is installed. */
+  async function waitForProvider(ms) {
+    const t0 = Date.now();
+    while (Date.now() - t0 < (ms || 800)) { const p = getProvider(); if (p) return p; await new Promise(r => setTimeout(r, 100)); }
+    return getProvider();
+  }
   const available = () => !!getProvider();
-  const providerName = () => { const p = getProvider(); return !p ? null : p.isPhantom ? 'Phantom' : p.isSolflare ? 'Solflare' : 'Wallet'; };
+  const providerName = () => { const p = getProvider(); return !p ? null : p.isPhantom ? 'Phantom' : p.isSolflare ? 'Solflare' : p.isBackpack ? 'Backpack' : 'Wallet'; };
+  const isMobile = () => /android|iphone|ipad|ipod/i.test(navigator.userAgent);
+  /** Deep links that reopen this page inside a wallet's in-app browser (where the wallet is injected). */
+  function deepLinks() {
+    const url = encodeURIComponent(location.href.split('#')[0]);
+    const ref = encodeURIComponent(location.origin);
+    return [
+      { name: 'Phantom', href: `https://phantom.app/ul/browse/${url}?ref=${ref}` },
+      { name: 'Solflare', href: `https://solflare.com/ul/v1/browse/${url}?ref=${ref}` }
+    ];
+  }
 
   async function connect() {
-    const p = getProvider();
-    if (!p) throw new Error('No Solana wallet found. Install Phantom or Solflare, or use a smart wallet account.');
-    const r = await p.connect();
+    const p = await waitForProvider(800);
+    if (!p) {
+      const err = new Error(isMobile()
+        ? 'No wallet is injected in this browser. Open the site inside your wallet app (buttons below), or use a smart wallet account.'
+        : 'No Solana wallet found. Install Phantom or Solflare, refresh, or use a smart wallet account.');
+      err.code = 'NO_WALLET';
+      throw err;
+    }
+    let r;
+    try { r = await p.connect(); }
+    catch (e) { const err = new Error(/reject|denied|cancel/i.test(String(e && e.message)) ? 'Connection request was rejected in the wallet.' : 'Wallet connection failed: ' + (e && e.message || e)); err.code = 'CONNECT'; throw err; }
     const pk = (r && r.publicKey) || p.publicKey;
     if (!pk) throw new Error('Wallet did not return a public key.');
     return { provider: p, pubkey: pk.toString() };
@@ -54,7 +81,9 @@ window.ArenaWallet = (function () {
 
   async function signMessage(provider, message) {
     const enc = new TextEncoder().encode(message);
-    const r = await provider.signMessage(enc, 'utf8');
+    let r;
+    try { r = await provider.signMessage(enc, 'utf8'); }
+    catch (e) { const err = new Error(/reject|denied|cancel/i.test(String(e && e.message)) ? 'Signature was rejected in the wallet.' : 'Signing failed: ' + (e && e.message || e)); err.code = 'SIGN'; throw err; }
     const sig = r && r.signature ? r.signature : r;
     return b58encode(sig instanceof Uint8Array ? sig : new Uint8Array(sig));
   }
@@ -80,9 +109,11 @@ window.ArenaWallet = (function () {
     if (!bh.blockhash) throw new Error('Could not fetch a recent blockhash.');
     const tx = new Transaction().add(ixCreate, ixTransfer);
     tx.feePayer = owner; tx.recentBlockhash = bh.blockhash;
-    const res = await provider.signAndSendTransaction(tx);
+    let res;
+    try { res = await provider.signAndSendTransaction(tx); }
+    catch (e) { throw new Error(/reject|denied|cancel/i.test(String(e && e.message)) ? 'Transaction was rejected in the wallet.' : 'Transaction failed: ' + (e && e.message || e)); }
     return typeof res === 'string' ? res : res.signature;
   }
 
-  return { available, providerName, connect, signMessage, deposit, loadLib };
+  return { available, providerName, isMobile, deepLinks, connect, signMessage, deposit, loadLib, waitForProvider };
 })();

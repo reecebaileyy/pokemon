@@ -173,6 +173,24 @@ function create(opts) {
     return sendTx(ixs, [vault]);
   }
 
+  /** Burn `amount` (base units) of the token from the vault — permanently removes it from supply. */
+  async function burn(amount) {
+    const data = Buffer.alloc(10);
+    data[0] = 15; // BurnChecked
+    data.writeBigUInt64LE(BigInt(amount), 1);
+    data[9] = decimals;
+    const ix = new TransactionInstruction({
+      programId: tokenProgram,
+      keys: [
+        { pubkey: vaultAta, isSigner: false, isWritable: true },
+        { pubkey: mint, isSigner: false, isWritable: true },
+        { pubkey: vault.publicKey, isSigner: true, isWritable: false }
+      ],
+      data
+    });
+    return sendTx([ix], [vault]);
+  }
+
   async function status() {
     let sol = null, tokens = null;
     try { sol = (await connection.getBalance(vault.publicKey, 'confirmed')) / 1e9; } catch (e) { /* ignore */ }
@@ -183,7 +201,8 @@ function create(opts) {
   return {
     vaultPubkey: vault.publicKey.toBase58(), vaultAta: vaultAta.toBase58(), generated, keySource: source, rpcUrl,
     mint: mint.toBase58(), decimals, tokenProgram: tokenProgram.toBase58(),
-    depositAddress, depositAta, verifyWalletSignature, fetchDeposits, sweep, withdraw, status, tokenBalance,
+    depositAddress, depositAta, verifyWalletSignature, fetchDeposits, sweep, withdraw, burn, status, tokenBalance,
+    vaultTokenBalance: () => tokenBalance(vaultAta),
     isValidPubkey: s => { try { return PublicKey.isOnCurve(new PublicKey(s).toBytes()); } catch (e) { return false; } },
     encodeBs58
   };

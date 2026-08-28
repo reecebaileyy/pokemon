@@ -37,7 +37,7 @@
   const players = new Map();
   const wilds = new Map();
   const bubbles = new Map();
-  let party = [], activeIndex = 0, me = null, coins = 0, inventory = {};
+  let party = [], activeIndex = 0, me = null, inventory = {};
   let encounter = null, battle = null, pendingChallenge = null;
   let leaderboardList = [], hallList = [];
   let economy = { stakes: false }, account = null, season = null, walletProvider = null, walletPubkey = null;
@@ -158,9 +158,11 @@
         joined = true; myId = m.id; map = m.map; renderMap();
         players.clear(); wilds.clear();
         m.players.forEach(addPlayer); m.wilds.forEach(w => wilds.set(w.id, w));
-        me = players.get(myId); party = m.party; activeIndex = m.active || 0; coins = m.coins || 0; inventory = m.inventory || {};
+        me = players.get(myId); party = m.party; activeIndex = m.active || 0; inventory = m.inventory || {};
         economy = m.economy || economy; season = m.season || season; account = m.account || null;
         fillEconomy(economy);
+        $('auth-x').classList.toggle('hidden', !economy.xLogin);
+        $('auth-wallet').classList.toggle('hidden', economy.walletAuth === false);
         if (account && account.token) storage.set('arena-session', account.token);
         leaderboardList = m.leaderboard; hallList = m.hallOfFame || hallList; renderLeaderboard(); renderHall();
         $('join-overlay').classList.add('hidden');
@@ -197,12 +199,12 @@
       case 'account':
         account = m.account;
         if (account && account.token) storage.set('arena-session', account.token); else if (!account) storage.del('arena-session');
-        renderAccount(); lastNearbyIds = ''; renderNearby();
+        renderAccount(); renderBag(); lastNearbyIds = ''; renderNearby();
         if (account) { setStatus('auth-status', `Signed in as ${account.name}.`, 'ok'); setTimeout(() => closeModal('modal-auth'), 600); fillWithdraw(); $('deposit-address').textContent = account.depositAddress || '—'; }
         break;
       case 'account_error': setStatus('auth-status', m.msg, 'err'); toast(m.msg, 'error'); break;
       case 'auth_challenge': continueWalletAuth(m); break;
-      case 'wallet_state': if (m.coins != null) coins = m.coins; if (m.inventory) inventory = m.inventory; renderBag(); renderBattleBag(); break;
+      case 'wallet_state': if (m.inventory) inventory = m.inventory; renderBag(); renderBattleBag(); break;
       case 'deposit_credited': toast(`Deposit credited: +${fmt(m.amount)} ${TICKER}`, 'prize'); setStatus('deposit-status', `Credited +${fmt(m.amount)} ${TICKER} ✓`, 'ok'); FX.confetti(window.innerWidth / 2, 140, 60); break;
       case 'withdraw_result':
         if (m.ok) setStatus('withdraw-status', `Sent ${fmt(m.amount)} ${TICKER} to ${short(m.to)} · <a href="https://solscan.io/tx/${esc(m.signature)}" target="_blank" rel="noopener">view on Solscan ↗</a>`, 'ok', true);
@@ -210,7 +212,7 @@
         break;
       case 'season': season = m.season; renderSeason(); break;
       case 'shop_result':
-        if (m.ok) { coins = m.coins; inventory = m.inventory; renderBag(); toast(`Bought ${m.qty}× ${D.ITEMS[m.item].name}`, 'info'); }
+        if (m.ok) { inventory = m.inventory; renderBag(); renderBattleBag(); toast(`Bought ${m.qty}× ${D.ITEMS[m.item].name} — ${fmt(m.cost)} ${TICKER} queued to burn 🔥`, 'burn'); }
         else toast(m.error, 'error');
         break;
       case 'error': toast(m.msg, 'error'); if (!joined) $('join-error').textContent = m.msg; break;
@@ -285,9 +287,12 @@
     const wrap = $('bag');
     if (!joined) { wrap.innerHTML = '<span class="muted">—</span>'; return; }
     const owned = D.ITEM_LIST.filter(it => (inventory[it.id] || 0) > 0);
-    wrap.innerHTML = `<div class="coins"><span class="muted">PokéCoins</span><b>${fmt(coins)}</b></div>` +
-      `<div class="inv">${owned.length ? owned.map(it => `<span title="${esc(it.desc)}">${it.icon} ${esc(it.name)} ×${inventory[it.id]}</span>`).join('') : '<span class="muted" style="border:0;background:none;padding:0">Bag is empty — catch and win to earn coins.</span>'}</div>` +
-      `<div class="shop">${D.ITEM_LIST.map(it => `<div class="shop-item"><span class="ic">${it.icon}</span><span class="nm"><b>${esc(it.name)}</b><small>${esc(it.desc)}</small></span><span class="cost">${it.cost}c</span><button class="btn btn-sm ${coins >= it.cost ? 'btn-primary' : ''}" data-item="${it.id}" ${coins >= it.cost ? '' : 'disabled'}>Buy</button></div>`).join('')}</div>`;
+    const balance = account ? account.balance : 0;
+    const price = it => (economy.prices && economy.prices[it.id] != null) ? economy.prices[it.id] : it.price;
+    wrap.innerHTML = `<div class="coins"><span class="muted">${account ? 'Your balance' : 'Sign in to shop'}</span><b>${account ? fmt(balance) + ' ' + TICKER : '—'}</b></div>` +
+      `<div class="inv">${owned.length ? owned.map(it => `<span title="${esc(it.desc)}">${it.icon} ${esc(it.name)} ×${inventory[it.id]}</span>`).join('') : '<span class="muted" style="border:0;background:none;padding:0">Bag is empty.</span>'}</div>` +
+      `<div class="shop">${D.ITEM_LIST.map(it => { const p = price(it); const can = account && balance >= p; return `<div class="shop-item"><span class="ic">${it.icon}</span><span class="nm"><b>${esc(it.name)}</b><small>${esc(it.desc)}</small></span><span class="cost">${fmt(p)}</span><button class="btn btn-sm ${can ? 'btn-primary' : ''}" data-item="${it.id}" ${can ? '' : 'disabled'} title="${account ? '' : 'Sign in and deposit to buy'}">Buy</button></div>`; }).join('')}</div>` +
+      `<div class="burn-note">🔥 Every purchase is burned on-chain — nobody pockets it.</div>`;
     wrap.querySelectorAll('button[data-item]').forEach(b => b.addEventListener('click', () => send({ t: 'buy_item', item: b.dataset.item, qty: 1 })));
   }
   function renderAccount() {
@@ -298,8 +303,9 @@
       $('acct-signin').addEventListener('click', () => { setStatus('auth-status', '', ''); openModal('modal-auth'); });
       return;
     }
-    const type = account.type === 'wallet' ? `wallet · ${short(account.walletPubkey)}` : 'smart wallet';
-    wrap.innerHTML = `<div class="acct-head"><span class="acct-name">${esc(account.name)}</span><span class="acct-type">${esc(type)}</span></div>` +
+    const type = account.type === 'wallet' ? `wallet · ${short(account.walletPubkey)}` : account.type === 'x' ? `X · ${account.handle || ''}` : 'smart wallet';
+    const avatar = account.avatar ? `<img class="acct-avatar" src="${esc(account.avatar)}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">` : '';
+    wrap.innerHTML = `<div class="acct-head">${avatar}<span class="acct-name">${esc(account.name)}</span><span class="acct-type${account.type === 'x' ? ' handle' : ''}">${esc(type)}</span></div>` +
       `<div class="acct-bal">${fmt(account.balance)}<small>${TICKER}</small></div>` +
       `<div class="acct-meta"><span>${fmt(account.seasonPoints)} season pts</span><span>${fmt(account.score)} all-time</span></div>` +
       `<div class="acct-btns"><button class="btn btn-primary btn-sm" id="acct-deposit" type="button">Deposit</button><button class="btn btn-sm" id="acct-withdraw" type="button">Withdraw</button>${economy.devFaucet ? '<button class="btn btn-sm" id="acct-faucet" type="button">+10k (dev)</button>' : ''}<button class="btn btn-ghost btn-sm" id="acct-logout" type="button">Sign out</button></div>`;
@@ -319,7 +325,8 @@
       `<div class="countdown">Season ${season.number} · pays top 3 in ${h}h ${mnt}m (50 / 30 / 20 %)</div>` +
       `<ol>${top.length ? top.map((t, i) => `<li class="${account && t.id === account.id ? 'me' : ''}"><span class="pl">${i + 1}</span>${t.mon ? spriteImg(t.mon, 24) : ''}<span class="nm">${esc(t.name)}</span><span class="pts">${fmt(t.points)} pts</span></li>`).join('') : '<li class="muted">No points yet this season — catch and win to lead.</li>'}</ol>` +
       (account ? `<div class="how">You: ${fmt(season.mine || 0)} pts this season.</div>` : '') +
-      `<div class="how">${season.feePct}% of every staked pot is taken as fee; ${season.poolShare}% of that feeds this pool.</div>`;
+      `<div class="how">${season.feePct}% of every staked pot is taken as fee; ${season.poolShare}% of that feeds this pool.</div>` +
+      (season.burn ? `<div class="burn"><b>🔥 ${fmt(season.burn.total)} ${TICKER} burned</b> by the PokéStore${season.burn.pending ? ` · ${fmt(season.burn.pending)} queued` : ''}${season.burn.last ? ` · <a href="https://solscan.io/tx/${esc(season.burn.last.signature)}" target="_blank" rel="noopener">last burn ↗</a>` : ''}</div>` : '');
     clearTimeout(seasonTimer); seasonTimer = setTimeout(renderSeason, 30000);
   }
   function renderLeaderboard() {
@@ -342,15 +349,31 @@
   }
 
   /* ---------- Account: sign-in flows ---------- */
+  let walletBusy = false;
+  function showWalletLinks(on) {
+    const wrap = $('wallet-links');
+    if (!on) { wrap.classList.add('hidden'); wrap.innerHTML = ''; return; }
+    const links = W.deepLinks();
+    wrap.innerHTML = (W.isMobile()
+      ? '<p>Open this page inside your wallet app to connect:</p>'
+      : '<p>No wallet extension detected. Install one, then come back:</p>') +
+      links.map(l => `<a href="${esc(l.href)}" target="_blank" rel="noopener">${esc(l.name)}<span>${W.isMobile() ? 'open in app ↗' : 'get wallet ↗'}</span></a>`).join('');
+    wrap.classList.remove('hidden');
+  }
   $('auth-wallet').addEventListener('click', async () => {
+    if (walletBusy) return;
+    walletBusy = true; $('auth-wallet').disabled = true;
     try {
-      if (!W.available()) throw new Error('No Solana wallet found — install Phantom or Solflare, or create a smart wallet account below.');
-      setStatus('auth-status', 'Connecting wallet…', '');
+      showWalletLinks(false);
+      setStatus('auth-status', 'Looking for your wallet…', '');
       const { provider, pubkey } = await W.connect();
       walletProvider = provider; walletPubkey = pubkey;
-      setStatus('auth-status', `Connected ${short(pubkey)} — sign the message in your wallet…`, '');
+      setStatus('auth-status', `Connected ${short(pubkey)} — approve the sign-in message in ${W.providerName(provider)}…`, '');
       send({ t: 'auth_nonce' });
-    } catch (e) { setStatus('auth-status', e.message || String(e), 'err'); }
+    } catch (e) {
+      if (e && e.code === 'NO_WALLET') showWalletLinks(true);
+      setStatus('auth-status', e.message || String(e), 'err');
+    } finally { walletBusy = false; $('auth-wallet').disabled = false; }
   });
   async function continueWalletAuth(m) {
     if (!walletProvider || !walletPubkey) return;
@@ -366,6 +389,24 @@
     setStatus('auth-status', 'Signing in…', '');
     send({ t: 'auth', type: 'smart', username, password, create });
   });
+  // Sign in with X: the server runs the OAuth dance in a popup (or a full redirect on phones) and hands back a session token.
+  let xPopup = null;
+  $('auth-x').addEventListener('click', () => {
+    const url = '/auth/x/start';
+    if (W.isMobile()) { location.href = url; return; }
+    xPopup = window.open(url, 'arena-x-login', 'width=600,height=720,menubar=no,toolbar=no');
+    if (!xPopup) { location.href = url; return; }
+    setStatus('auth-status', 'Finish signing in with X in the popup…', '');
+  });
+  let pendingToken = null;
+  function useSessionToken(token) {
+    if (!token || pendingToken === token || (account && account.token === token)) return;
+    pendingToken = token;
+    storage.set('arena-session', token);
+    if (joined) { setStatus('auth-status', 'Signing in…', ''); send({ t: 'auth', type: 'token', token }); }
+  }
+  window.addEventListener('message', e => { if (e.origin === location.origin && e.data && e.data.type === 'arena-x-auth') useSessionToken(String(e.data.token || '')); });
+  window.addEventListener('storage', e => { if (e.key === 'arena-session' && e.newValue) useSessionToken(e.newValue); });
 
   /* ---------- Deposit / withdraw ---------- */
   function openDeposit() {
@@ -471,7 +512,7 @@
       $('enc-msg').textContent = `Caught ${encounter.sp.name}. +${r.points} pts${r.isNew ? ' · new' : ''}${r.mon.shiny ? ' · shiny ×3' : ''}`;
       $('enc-throws').textContent = '';
       const rect = canvas.getBoundingClientRect(); FX.confetti(rect.left + rect.width / 2, rect.top + rect.height / 2, 80);
-      party = r.party; if (r.coins != null) coins = r.coins; renderParty(); renderBag();
+      party = r.party; renderParty(); renderBag();
       setTimeout(() => { $('encounter-overlay').classList.add('hidden'); encounter = null; }, 1600);
     } else {
       ball.className = 'enc-ball'; $('enc-sprite').classList.remove('shake');
@@ -545,7 +586,7 @@
     const wrap = $('battle-bag');
     const usable = D.ITEM_LIST.filter(it => it.kind !== 'ball' && (inventory[it.id] || 0) > 0);
     const enabled = battle && !battle.busy && !battle.over;
-    wrap.innerHTML = usable.length ? usable.map(it => `<button class="item-btn" data-item="${it.id}" ${enabled ? '' : 'disabled'}><b>${it.icon} ${esc(it.name)} ×${inventory[it.id]}</b><small>${esc(it.desc)} Uses your turn.</small></button>`).join('') : '<div class="empty">No usable items. Buy potions in the Bag panel with PokéCoins.</div>';
+    wrap.innerHTML = usable.length ? usable.map(it => `<button class="item-btn" data-item="${it.id}" ${enabled ? '' : 'disabled'}><b>${it.icon} ${esc(it.name)} ×${inventory[it.id]}</b><small>${esc(it.desc)} Uses your turn.</small></button>`).join('') : '<div class="empty">No usable items. Buy potions in the PokéStore.</div>';
     wrap.querySelectorAll('button[data-item]').forEach(b => b.addEventListener('click', () => useItem(b.dataset.item)));
   }
   function showBag(on) { $('battle-bag').classList.toggle('hidden', !on); $('battle-moves').classList.toggle('hidden', on); $('battle-bag-btn').textContent = on ? 'Moves' : 'Bag'; }
@@ -737,7 +778,7 @@
     if (near.length) hint = `Space — battle ${near[0].name}`; else if (map.tiles[me.y][me.x] === T.TALL) hint = 'Tall grass';
     ctx.font = '600 12px Inter, system-ui, sans-serif';
     if (hint) { const w = ctx.measureText(hint).width + 20; ctx.fillStyle = 'rgba(10,10,12,0.75)'; ctx.fillRect(VIEW_W / 2 - w / 2, VIEW_H - 36, w, 24); ctx.fillStyle = '#ffcb05'; ctx.textAlign = 'center'; ctx.fillText(hint, VIEW_W / 2, VIEW_H - 20); ctx.textAlign = 'left'; }
-    const hud = `${me.score} pts · ${fmt(coins)} coins · ${me.catches} caught · ${me.wins}W`;
+    const hud = `${me.score} pts · ${me.catches} caught · ${me.wins}W${account ? ` · ${fmt(account.balance)} ${TICKER}` : ''}`;
     const hw = ctx.measureText(hud).width + 20;
     ctx.fillStyle = 'rgba(10,10,12,0.75)'; ctx.fillRect(10, VIEW_H - 36, hw, 24);
     ctx.fillStyle = '#fff'; ctx.fillText(hud, 20, VIEW_H - 20);
@@ -752,7 +793,7 @@
     requestAnimationFrame(loop);
   }
 
-  window.ArenaDebug = () => ({ joined, me, map, wilds: [...wilds.values()], players: [...players.values()], party, coins, inventory, account, season, economy, encounter: !!encounter, battle: !!battle, frames, keys: [...keys], wsState: ws && ws.readyState, visible: document.visibilityState, move: dir => send({ t: 'move', dir }), send });
+  window.ArenaDebug = () => ({ joined, me, map, wilds: [...wilds.values()], players: [...players.values()], party, inventory, account, season, economy, encounter: !!encounter, battle: !!battle, frames, keys: [...keys], wsState: ws && ws.readyState, visible: document.visibilityState, move: dir => send({ t: 'move', dir }), send });
 
   connect();
   requestAnimationFrame(loop);

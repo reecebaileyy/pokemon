@@ -217,12 +217,15 @@
           <section class="panel"><h4>You</h4><div class="me-card" id="me-card"><span class="muted">Not in the arena.</span></div></section>
           <section class="panel" id="account-panel"><h4>Account <small>save progress · stake $POKEMON</small></h4><div class="account-card" id="account-card"><span class="muted">Enter the arena first.</span></div></section>
           <section class="panel"><h4>Party <small>tap to switch</small></h4><div class="party" id="party-list"></div></section>
-          <section class="panel"><h4>Bag &amp; shop <small>PokéCoins</small></h4><div class="bag" id="bag"></div></section>
           <section class="panel"><h4>Nearby <small>battle · stake</small></h4><div class="nearby-list" id="nearby-list"><div class="muted">—</div></div></section>
-          <section class="panel" id="season-panel"><h4>Season prize pool</h4><div class="season-card" id="season-card"><span class="muted">—</span></div></section>
           <section class="panel"><h4>Leaderboard <small>live</small></h4><ol class="lb" id="leaderboard"></ol></section>
-          <section class="panel"><h4>Hall of fame <small>all time</small></h4><ol class="lb" id="hall-of-fame"></ol></section>
         </aside>
+
+        <div class="arena-under">
+          <section class="panel"><h4>PokéStore <small>paid in $POKEMON · 100% burned</small></h4><div class="bag" id="bag"></div></section>
+          <section class="panel" id="season-panel"><h4>Season prize pool</h4><div class="season-card" id="season-card"><span class="muted">—</span></div></section>
+          <section class="panel"><h4>Hall of fame <small>all time</small></h4><ol class="lb" id="hall-of-fame"></ol></section>
+        </div>
       </div>
     </section>
 
@@ -267,12 +270,12 @@
           <p>Your level is 1 + catches÷2 + wins÷2 and raises HP and damage. Starters evolve at <b>Lv 4</b> and <b>Lv 8</b>, Pikachu at Lv 6, Magikarp at Lv 5, Eevee at Lv 5 into a random Eeveelution.</p>
         </section>
         <section>
-          <h4>6 · PokéCoins</h4>
-          <p>Every point you earn is also a PokéCoin. Spend them in <b>Bag &amp; shop</b> on potions, X items and balls. Coins are game currency only — they're never bought or sold for tokens.</p>
+          <h4>6 · PokéStore</h4>
+          <p>Potions, X items and balls are sold for <b><span data-cfg="ticker">$POKEMON</span></b> from your arena balance (sign in and deposit first). <b>100% of what you spend is burned</b> — the vault destroys it on-chain, so every purchase permanently shrinks the supply. The running burn total and transaction links are shown in the Season panel.</p>
         </section>
         <section>
           <h4>7 · Accounts</h4>
-          <p><b>Connect wallet</b> (Phantom / Solflare signs a message — no transaction, no fee) or create a <b>smart wallet</b> — a username + passphrase account that lives inside the arena, for players without a browser wallet. Either way your progress resumes when you come back.</p>
+          <p><b>Continue with X</b> (your X account becomes your smart wallet — nothing to remember), <b>connect a wallet</b> (Phantom / Solflare signs a message — no transaction, no fee), or create a <b>smart wallet</b> with a username + passphrase. A smart wallet is an account that lives inside the arena with its own deposit address, for players without a browser wallet. Either way your progress resumes when you come back.</p>
         </section>
         <section>
           <h4>8 · Staking <span data-cfg="ticker">$POKEMON</span></h4>
@@ -298,7 +301,9 @@
       <h3>Save your progress</h3>
       <p class="muted">Your party, bag, points and $POKEMON balance are tied to an account. Pick one:</p>
       <div class="auth-options">
+        <button class="btn btn-x hidden" id="auth-x" type="button"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg> Continue with X</button>
         <button class="btn btn-primary" id="auth-wallet" type="button">Connect wallet</button>
+        <div class="wallet-links hidden" id="wallet-links"></div>
         <span class="auth-or">or</span>
         <form class="auth-form" id="auth-smart" autocomplete="off">
           <input id="auth-user" placeholder="Username" maxlength="16" autocomplete="username" />
