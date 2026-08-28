@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>POKÉCTO — Community Takeover · Gotta Pump ’Em All</title>
+  <meta name="description" content="A community-owned Pokémon-inspired memecoin. Play the multiplayer CTO Arena, catch mons, battle trainers." />
+  <meta property="og:title" content="POKÉCTO — Community Takeover" />
+  <meta property="og:description" content="The dev rugged. The community caught the ball. Play the multiplayer arena." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%23e3350d'/%3E%3Cpath d='M1 16h30' stroke='%231b1b2f' stroke-width='3'/%3E%3Cpath d='M16 17a15 15 0 0 0 15-1H1a15 15 0 0 0 15 1z' fill='%23fff'/%3E%3Ccircle cx='16' cy='16' r='5' fill='%23fff' stroke='%231b1b2f' stroke-width='3'/%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Nunito:wght@500;700;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <canvas id="fx-canvas" aria-hidden="true"></canvas>
+  <div class="cursor-trail" id="cursor-trail" aria-hidden="true"></div>
+
+  <!-- ================= NAV ================= -->
+  <header class="nav" id="nav">
+    <a class="brand" href="#top">
+      <span class="brand-ball" aria-hidden="true"></span>
+      <span class="brand-name" data-cfg="name">POKÉCTO</span>
+    </a>
+    <nav class="nav-links" id="nav-links">
+      <a href="#about">CTO Story</a>
+      <a href="#tokenomics">Tokenomics</a>
+      <a href="#evolution">Roadmap</a>
+      <a href="#dex">Pokédex</a>
+      <a href="#how-to-buy">How to Buy</a>
+      <a href="#arena" class="nav-arena">⚔️ Arena</a>
+    </nav>
+    <div class="nav-right">
+      <span class="online-pill" id="online-pill" title="Trainers online in the arena">
+        <span class="dot"></span><span id="online-count">0</span> online
+      </span>
+      <a class="btn btn-yellow btn-sm" id="nav-buy" href="#" target="_blank" rel="noopener">Buy <span data-cfg="ticker">$PKCTO</span></a>
+      <button class="nav-toggle" id="nav-toggle" aria-label="Menu">☰</button>
+    </div>
+  </header>
+
+  <main id="top">
+    <!-- ================= HERO ================= -->
+    <section class="hero" id="hero">
+      <div class="hero-bg" aria-hidden="true"></div>
+      <div class="hero-sprites" id="hero-sprites" aria-hidden="true"></div>
+      <div class="hero-inner">
+        <div class="hero-copy reveal">
+          <div class="pill pill-red">COMMUNITY TAKEOVER · <span data-cfg="chain">Solana</span></div>
+          <h1 class="hero-title">
+            <span class="line">The dev rugged.</span>
+            <span class="line accent">The community</span>
+            <span class="line accent">caught the ball.</span>
+          </h1>
+          <p class="hero-tag" data-cfg="tagline">The dev rugged. The community caught the ball.</p>
+
+          <div class="ca-box">
+            <span class="ca-label">CA</span>
+            <code id="contract-address">…</code>
+            <button class="btn btn-sm btn-blue" id="copy-ca">Copy</button>
+          </div>
+
+          <div class="hero-cta">
+            <a class="btn btn-yellow btn-lg" id="buy-btn" href="#" target="_blank" rel="noopener">Buy <span data-cfg="ticker">$PKCTO</span></a>
+            <a class="btn btn-blue btn-lg" id="chart-btn" href="#" target="_blank" rel="noopener">Chart</a>
+            <a class="btn btn-red btn-lg" href="#arena" id="play-btn">Play the Arena</a>
+          </div>
+
+          <div class="hero-stats">
+            <div class="stat"><span class="stat-val" id="stat-mcap">$0</span><span class="stat-key">Market cap</span></div>
+            <div class="stat"><span class="stat-val" id="stat-holders">0</span><span class="stat-key">Holders</span></div>
+            <div class="stat"><span class="stat-val" id="stat-online">0</span><span class="stat-key">Trainers online</span></div>
+          </div>
+        </div>
+
+        <div class="hero-ball-wrap reveal">
+          <div class="hero-ball" id="hero-ball" role="button" tabindex="0" aria-label="Throw the Pokéball">
+            <div class="ball-top"></div>
+            <div class="ball-band"></div>
+            <div class="ball-bottom"></div>
+            <div class="ball-button"><div class="ball-button-inner"></div></div>
+          </div>
+          <div class="ball-hint" id="ball-hint">Click the ball to catch <span data-cfg="ticker">$PKCTO</span></div>
+          <div class="ball-catches" id="ball-catches"></div>
+        </div>
+      </div>
+
+      <div class="marquee" aria-hidden="true">
+        <div class="marquee-track" id="marquee"></div>
+      </div>
+    </section>
+
+    <!-- ================= CTO STORY ================= -->
+    <section class="section" id="about">
+      <div class="container">
+        <div class="section-head reveal">
+          <div class="pill pill-blue">THE STORY</div>
+          <h2>What is a <span class="hl">CTO</span>?</h2>
+          <p class="lead">A <b>Community Take Over</b> happens when the original dev abandons (or rugs) a token and the holders refuse to let it die. They reclaim the socials, lock the contract down, and run the project themselves. No dev wallet. No promises from strangers. Just trainers.</p>
+        </div>
+        <div class="timeline" id="timeline"></div>
+        <div class="dex-entry reveal">
+          <div class="dex-entry-screen">
+            <span class="dex-no">No. 001</span>
+            <h3><span data-cfg="name">POKÉCTO</span> <small>· the Community Mon</small></h3>
+            <p>“This species cannot be rugged twice. Once abandoned, it evolves by absorbing the collective hopium of its holders. Known to attack red candles with unreasonable optimism.”</p>
+            <div class="dex-meta">
+              <span>TYPE: <b>Community / Meme</b></span>
+              <span>HEIGHT: <b>1,000,000,000 supply</b></span>
+              <span>WEAKNESS: <b>None (LP burned)</b></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= TOKENOMICS ================= -->
+    <section class="section section-alt" id="tokenomics">
+      <div class="container">
+        <div class="section-head reveal">
+          <div class="pill pill-yellow">STATS</div>
+          <h2>Tokenomics</h2>
+          <p class="lead">Base stats of a community mon. Everything below is verifiable on-chain.</p>
+        </div>
+        <div class="tokenomics-grid">
+          <div class="chart-card reveal">
+            <canvas id="tokenomics-chart" width="360" height="360"></canvas>
+            <div class="chart-center">
+              <span class="chart-center-val" data-cfg="ticker">$PKCTO</span>
+              <span class="chart-center-key">supply</span>
+            </div>
+            <ul class="legend" id="tokenomics-legend"></ul>
+          </div>
+          <div class="stat-cards" id="tokenomics-cards"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= EVOLUTION ROADMAP ================= -->
+    <section class="section" id="evolution">
+      <div class="container">
+        <div class="section-head reveal">
+          <div class="pill pill-red">ROADMAP</div>
+          <h2>Evolution chain</h2>
+          <p class="lead">Roadmaps are for devs. We evolve. Every market-cap milestone unlocks the next form.</p>
+        </div>
+        <div class="evo-progress-wrap reveal">
+          <div class="evo-progress"><div class="evo-progress-fill" id="evo-progress"></div></div>
+          <div class="evo-progress-label" id="evo-progress-label"></div>
+        </div>
+        <div class="evo-chain" id="evo-chain"></div>
+      </div>
+    </section>
+
+    <!-- ================= POKEDEX + QUIZ ================= -->
+    <section class="section section-alt" id="dex">
+      <div class="container">
+        <div class="section-head reveal">
+          <div class="pill pill-blue">POKÉDEX</div>
+          <h2>Meet the mons</h2>
+          <p class="lead">Seven original creatures live in the Arena. Click one to hear its cry. Catch them all in the game below.</p>
+        </div>
+        <div class="dex-grid" id="dex-grid"></div>
+
+        <div class="quiz reveal">
+          <div class="quiz-screen">
+            <div class="quiz-head">
+              <h3>Who’s that mon?</h3>
+              <span class="quiz-streak">Streak: <b id="quiz-streak">0</b></span>
+            </div>
+            <div class="quiz-body">
+              <div class="quiz-canvas-wrap"><canvas id="quiz-canvas" width="192" height="192"></canvas></div>
+              <div class="quiz-options" id="quiz-options"></div>
+            </div>
+            <div class="quiz-result" id="quiz-result">Pick a name!</div>
+          </div>
+        </div>
+
+        <div class="section-head reveal" style="margin-top:4rem">
+          <div class="pill pill-yellow">GYM LEADERS</div>
+          <h2>The community core</h2>
+          <p class="lead">Volunteers, not a dev team. Multisig signers and mods keeping the lights on.</p>
+        </div>
+        <div class="team-grid" id="team-grid"></div>
+      </div>
+    </section>
+
+    <!-- ================= HOW TO BUY ================= -->
+    <section class="section" id="how-to-buy">
+      <div class="container">
+        <div class="section-head reveal">
+          <div class="pill pill-red">HOW TO BUY</div>
+          <h2>Catch <span data-cfg="ticker">$PKCTO</span> in 4 steps</h2>
+        </div>
+        <div class="steps" id="steps"></div>
+      </div>
+    </section>
+
+    <!-- ================= ARENA (GAME) ================= -->
+    <section class="section section-arena" id="arena">
+      <div class="container container-wide">
+        <div class="section-head reveal">
+          <div class="pill pill-yellow">MULTIPLAYER</div>
+          <h2>CTO Arena</h2>
+          <p class="lead">A live shared world. Walk through tall grass to find wild mons, throw with perfect timing to catch them, and challenge nearby trainers to battle. Everyone on this page is in the same world.</p>
+        </div>
+
+        <div class="arena-wrap">
+          <div class="arena-main">
+            <div class="arena-screen" id="arena-screen">
+              <canvas id="game-canvas" width="800" height="480"></canvas>
+              <div class="scanlines" aria-hidden="true"></div>
+
+              <!-- Join -->
+              <div class="overlay" id="join-overlay">
+                <div class="overlay-card join-card">
+                  <h3>Enter the Arena</h3>
+                  <label class="field">
+                    <span>Trainer name</span>
+                    <input id="join-name" maxlength="14" placeholder="e.g. DiamondHands" autocomplete="off" />
+                  </label>
+                  <label class="field field-row">
+                    <span>Cap colour</span>
+                    <input type="color" id="join-color" value="#e3350d" />
+                  </label>
+                  <div class="field">
+                    <span>Choose your starter</span>
+                    <div class="starter-picker" id="starter-picker"></div>
+                  </div>
+                  <button class="btn btn-yellow btn-lg" id="join-btn">Start adventure</button>
+                  <div class="join-error" id="join-error"></div>
+                  <p class="join-hint">WASD / arrows to move · Enter to chat · Space to challenge a nearby trainer</p>
+                </div>
+              </div>
+
+              <!-- Encounter -->
+              <div class="overlay hidden" id="encounter-overlay">
+                <div class="overlay-card enc-card">
+                  <div class="enc-stage">
+                    <div class="enc-sprite" id="enc-sprite"></div>
+                    <div class="enc-ball" id="enc-ball"></div>
+                  </div>
+                  <h3 id="enc-title">A wild mon appeared!</h3>
+                  <div class="enc-bar" id="enc-bar">
+                    <div class="enc-zone"></div>
+                    <div class="enc-zone-perfect"></div>
+                    <div class="enc-cursor" id="enc-cursor"></div>
+                  </div>
+                  <div class="enc-msg" id="enc-msg">Stop the cursor in the green zone!</div>
+                  <div class="enc-actions">
+                    <button class="btn btn-red btn-lg" id="enc-throw">Throw! <small>(Space)</small></button>
+                    <button class="btn btn-ghost" id="enc-run">Run</button>
+                  </div>
+                  <div class="enc-throws" id="enc-throws"></div>
+                </div>
+              </div>
+
+              <!-- Battle -->
+              <div class="overlay hidden" id="battle-overlay">
+                <div class="battle">
+                  <div class="battle-field">
+                    <div class="battle-side battle-foe">
+                      <div class="hp-box">
+                        <div class="hp-name"><span id="foe-name">Foe</span> <small id="foe-level">Lv1</small></div>
+                        <div class="hp-bar"><div class="hp-fill" id="foe-hp"></div></div>
+                        <div class="hp-text" id="foe-hp-text"></div>
+                      </div>
+                      <div class="battle-sprite" id="foe-sprite"></div>
+                    </div>
+                    <div class="battle-side battle-me">
+                      <div class="battle-sprite" id="me-sprite"></div>
+                      <div class="hp-box">
+                        <div class="hp-name"><span id="me-name">You</span> <small id="me-level">Lv1</small></div>
+                        <div class="hp-bar"><div class="hp-fill" id="me-hp"></div></div>
+                        <div class="hp-text" id="me-hp-text"></div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="battle-console">
+                    <div class="battle-log" id="battle-log"></div>
+                    <div class="battle-moves" id="battle-moves"></div>
+                    <div class="battle-foot">
+                      <span class="battle-timer" id="battle-timer"></span>
+                      <button class="btn btn-ghost btn-sm" id="battle-forfeit">Forfeit</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Incoming challenge -->
+              <div class="challenge-toast hidden" id="challenge-toast">
+                <span id="challenge-text">Someone challenges you!</span>
+                <button class="btn btn-yellow btn-sm" id="challenge-accept">Accept</button>
+                <button class="btn btn-ghost btn-sm" id="challenge-decline">Decline</button>
+              </div>
+
+              <div class="game-toasts" id="game-toasts"></div>
+
+              <!-- Mobile controls -->
+              <div class="dpad" id="dpad">
+                <button data-dir="up" aria-label="Up">▲</button>
+                <button data-dir="left" aria-label="Left">◀</button>
+                <button data-dir="right" aria-label="Right">▶</button>
+                <button data-dir="down" aria-label="Down">▼</button>
+              </div>
+              <button class="action-btn" id="action-btn" aria-label="Action">⚔</button>
+            </div>
+
+            <div class="arena-bottom">
+              <div class="chat">
+                <div class="chat-log" id="chat-log"></div>
+                <form class="chat-form" id="chat-form" autocomplete="off">
+                  <input id="chat-input" maxlength="120" placeholder="Say something to the arena…" disabled />
+                  <button class="btn btn-blue btn-sm" type="submit" disabled id="chat-send">Send</button>
+                </form>
+              </div>
+            </div>
+          </div>
+
+          <aside class="arena-side">
+            <div class="panel" id="me-panel">
+              <div class="panel-title">Trainer card</div>
+              <div class="me-card" id="me-card"><span class="muted">Not in the arena yet.</span></div>
+            </div>
+            <div class="panel">
+              <div class="panel-title">Party <small class="muted">(click to switch active)</small></div>
+              <div class="party-list" id="party-list"><span class="muted">—</span></div>
+            </div>
+            <div class="panel">
+              <div class="panel-title">Nearby trainers</div>
+              <div class="nearby-list" id="nearby-list"><span class="muted">Walk up to someone to challenge them.</span></div>
+            </div>
+            <div class="panel">
+              <div class="panel-title">Leaderboard <small class="muted">(live)</small></div>
+              <ol class="lb" id="leaderboard"></ol>
+            </div>
+            <div class="panel">
+              <div class="panel-title">Hall of fame <small class="muted">(all time)</small></div>
+              <ol class="lb" id="hall-of-fame"></ol>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= COMMUNITY ================= -->
+    <section class="section section-community" id="community">
+      <div class="container">
+        <div class="section-head reveal">
+          <div class="pill pill-blue">JOIN US</div>
+          <h2>No dev. Only trainers.</h2>
+          <p class="lead">Everything here is run by holders. Come say hi, raid, meme, and help this thing evolve.</p>
+        </div>
+        <div class="social-grid" id="social-grid"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <p><b data-cfg="name">POKÉCTO</b> is a community-run memecoin with no formal team, no roadmap promises and no intrinsic value. This site is fan-made and is not affiliated with, endorsed by, or connected to Nintendo, Game Freak, Creatures Inc. or The Pokémon Company. All creatures on this site are original. Crypto is risky — never invest more than you can afford to lose.</p>
+      <p class="muted">© <span id="year"></span> <span data-cfg="name">POKÉCTO</span> community · built by holders, for holders.</p>
+    </div>
+  </footer>
+
+  <script src="config.js"></script>
+  <script src="sprites.js"></script>
+  <script src="main.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>

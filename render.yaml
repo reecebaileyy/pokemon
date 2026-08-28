@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: pokecto-arena
+    runtime: node
+    plan: free
+    buildCommand: npm ci
+    startCommand: node server.js
+    healthCheckPath: /api/stats
+    envVars:
+      - key: NODE_ENV
+        value: production
