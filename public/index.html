@@ -26,6 +26,7 @@
       <a href="#lore">Lore</a>
       <a href="#about">About</a>
       <a href="#arena">Arena</a>
+      <a href="#docs">Docs</a>
       <a href="#community">Community</a>
     </nav>
     <div class="nav-right">
@@ -230,6 +231,82 @@
     </section>
 
     <!-- Evolution roadmap -->
+    <!-- Docs: how the game works + burn mechanics (the in-game "How to play" panel clones #docs-grid) -->
+    <section class="section container" id="docs">
+      <div class="section-head"><h2>Docs</h2><p class="lead">How the arena works — and how every <span data-cfg="ticker">$POKEMON</span> spent in it leaves the supply for good.</p></div>
+
+      <div class="docs-burn">
+        <div class="docs-burn-head">
+          <div><h3>Burn mechanics</h3><p class="muted">The PokéStore has no revenue. 100% of what players spend is destroyed on-chain by the arena vault — nobody, including the team, receives it.</p></div>
+          <a class="btn btn-sm" href="/api/burns" target="_blank" rel="noopener">Full burn log ↗</a>
+        </div>
+        <div class="docs-stats">
+          <div><span class="k">Burned by the PokéStore</span><b id="docs-burned">—</b><small><span data-cfg="ticker">$POKEMON</span> destroyed so far</small></div>
+          <div><span class="k">Queued for the next burn</span><b id="docs-pending">—</b><small>batched about once a minute</small></div>
+          <div><span class="k">Burn transactions</span><b id="docs-burn-count">—</b><small>each one linked below</small></div>
+          <div><span class="k">Gone from supply since launch</span><b id="docs-supply-burned">—</b><small>incl. creator-fee burns · supply now <span id="docs-supply">—</span></small></div>
+        </div>
+        <ol class="docs-steps">
+          <li><b>You buy an item.</b> The price is debited from your arena balance in <span data-cfg="ticker">$POKEMON</span>. Guests can't shop — sign in and deposit first.</li>
+          <li><b>It joins the burn queue.</b> Purchases are grouped so one transaction can burn many buys; the queued amount is shown live above.</li>
+          <li><b>The vault burns it.</b> Within about a minute the vault wallet signs a Token-2022 <code>BurnChecked</code>: the tokens are destroyed and the mint's supply drops by exactly that amount. Nothing is transferred anywhere.</li>
+          <li><b>The proof is public.</b> The signature is recorded and linked here, in the Season panel and at <code>/api/burns</code>. If a burn fails (RPC hiccup) it stays queued and retries — nothing is lost.</li>
+        </ol>
+        <div class="docs-verify">
+          <div><h4>Recent burns</h4><div class="docs-burn-list" id="docs-burn-list"><span class="muted">No burns yet — the first PokéStore purchase starts the log.</span></div></div>
+          <div>
+            <h4>Check it yourself</h4>
+            <p class="muted">Open any signature on Solscan: one <code>BurnChecked</code> instruction, tokens leave the vault's token account, no account receives them, and the supply falls. To audit every burn at once run <code>node scripts/verify-burn.js --site https://www.pokemoncto.com</code> from the <a href="https://github.com/reecebaileyy/pokemon" target="_blank" rel="noopener">open-source repo</a>.</p>
+            <p class="muted">Vault wallet: <a id="docs-vault-link" href="#" target="_blank" rel="noopener"><code id="docs-vault">—</code></a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="docs-grid" id="docs-grid">
+        <section>
+          <h4>1 · Enter</h4>
+          <p>Pick a starter — Bulbasaur, Charmander, Squirtle or Pikachu — a trainer name and a cap colour. You can play as a guest; <b>sign in</b> (Account panel) to keep your party, bag, points and balance.</p>
+        </section>
+        <section>
+          <h4>2 · Move</h4>
+          <p><kbd>WASD</kbd> or arrows on desktop, the D-pad on phones. Everyone on this page is in the same world — you'll see other trainers walking around, and your active Pokémon follows you.</p>
+        </section>
+        <section>
+          <h4>3 · Catch</h4>
+          <p>Wild Pokémon hide in <b>tall grass</b>. Step onto one, then stop the moving marker in the green zone — gold is a perfect throw. You get three throws; <b>Great</b> and <b>Ultra Balls</b> from the store raise your odds. 1 in 32 spawns is <b>shiny</b> (×3 points); legendaries are announced to everyone. Your party holds six — tap one in the Party panel to make it active.</p>
+        </section>
+        <section>
+          <h4>4 · Battle</h4>
+          <p>Walk next to a trainer and press <kbd>Space</kbd> (or Battle in the Nearby panel). Battles are turn-based, 25 seconds per turn: choose one of four moves or open the <b>Bag</b> — Potions heal, X Attack / X Defend buff you for three turns, and using an item takes your turn. The full type chart applies (water beats fire, ghost ignores normal, and so on). Winner +25 points, loser +5. Forfeiting or disconnecting counts as a loss.</p>
+        </section>
+        <section>
+          <h4>5 · Level up &amp; evolve</h4>
+          <p>Your level is 1 + catches÷2 + wins÷2 and raises HP and damage. Starters evolve at <b>Lv 4</b> and <b>Lv 8</b>, Pikachu at Lv 6, Magikarp at Lv 5, Eevee at Lv 5 into a random Eeveelution.</p>
+        </section>
+        <section>
+          <h4>6 · PokéStore</h4>
+          <p>Potions, X items and balls are sold for <b><span data-cfg="ticker">$POKEMON</span></b> from your arena balance (sign in and deposit first). <b>100% of what you spend is burned</b> — the vault destroys it on-chain, so every purchase permanently shrinks the supply. Prices: Potion <span data-econ="price_potion">500</span>, Super Potion <span data-econ="price_superpotion">1,200</span>, Hyper Potion <span data-econ="price_hyperpotion">2,800</span>, Full Restore <span data-econ="price_fullrestore">5,000</span>, X Attack / X Defend <span data-econ="price_xattack">1,800</span>, Great Ball <span data-econ="price_greatball">1,000</span>, Ultra Ball <span data-econ="price_ultraball">2,500</span>.</p>
+        </section>
+        <section>
+          <h4>7 · Accounts</h4>
+          <p><b>Continue with X</b> (your X account becomes your smart wallet — nothing to remember), <b>connect a wallet</b> (Phantom / Solflare signs a message — no transaction, no fee), or create a <b>smart wallet</b> with a username + passphrase. A smart wallet is an account that lives inside the arena with its own deposit address, for players without a browser wallet. Either way your progress resumes when you come back.</p>
+        </section>
+        <section>
+          <h4>8 · Staking <span data-cfg="ticker">$POKEMON</span></h4>
+          <p>Signed in with a balance? Type a stake next to a nearby trainer's Battle button, or accept theirs. Both stakes are locked when the battle starts; the winner takes the pot minus a <b><span data-econ="feePct">4</span>% fee</b>. Stakes run from <span data-econ="minStake">1,000</span> to <span data-econ="maxStake">5,000,000</span>. Forfeit or disconnect loses your stake. Only stake what you can afford to lose — battles have luck in them.</p>
+        </section>
+        <section>
+          <h4>9 · Season prize pool</h4>
+          <p><span data-econ="prizePoolShare">75</span>% of every fee goes into the pool. Every <span data-econ="seasonHours">24</span> hours it pays the season's top 3 by points — 50 / 30 / 20 % — and points reset. Catching, winning and staking all count. The rest of the fee stays in the vault as treasury; it is the only <span data-cfg="ticker">$POKEMON</span> the arena keeps.</p>
+        </section>
+        <section>
+          <h4>10 · Deposit &amp; withdraw</h4>
+          <p>Deposit: send <span data-cfg="ticker">$POKEMON</span> to your personal arena address (Account → Deposit) from any wallet or exchange, or let the site build the transfer for your wallet to sign. Credited within about a minute. Withdraw to any Solana address: minimum <span data-econ="minWithdraw">1,000</span>, up to <span data-econ="maxWithdrawPerDay">2,000,000</span> per day. Balances are held by the arena vault, not by a third party.</p>
+        </section>
+      </div>
+      <p class="muted small docs-foot">Chat: <kbd>Enter</kbd> · Rematch: press <kbd>Space</kbd> near the same trainer · Run from an encounter with B / Run. The <b>How to play</b> button inside the arena opens these same docs as a panel.</p>
+    </section>
+
     <section class="section container" id="roadmap">
       <div class="section-head row"><h2>Evolution</h2><p class="lead" id="evo-note"></p></div>
       <div class="evo-row" id="evo-row"></div>
@@ -248,49 +325,9 @@
     <div class="modal-card guide">
       <button class="modal-close" data-close aria-label="Close">×</button>
       <h3>How to play</h3>
-      <div class="guide-grid">
-        <section>
-          <h4>1 · Enter</h4>
-          <p>Pick a starter — Bulbasaur, Charmander, Squirtle or Pikachu — a trainer name and a cap colour. You can play as a guest; <b>sign in</b> (Account panel) to keep your party, bag, points and balance.</p>
-        </section>
-        <section>
-          <h4>2 · Move</h4>
-          <p><kbd>WASD</kbd> or arrows on desktop, the D-pad on phones. Everyone on this page is in the same world — you'll see other trainers walking around, and your active Pokémon follows you.</p>
-        </section>
-        <section>
-          <h4>3 · Catch</h4>
-          <p>Wild Pokémon hide in <b>tall grass</b>. Step onto one, then stop the moving marker in the green zone — gold is a perfect throw. You get three throws; <b>Great</b> and <b>Ultra Balls</b> from the shop raise your odds. 1 in 32 spawns is <b>shiny</b> (×3 points); legendaries are announced to everyone. Your party holds six — tap one in the Party panel to make it active.</p>
-        </section>
-        <section>
-          <h4>4 · Battle</h4>
-          <p>Walk next to a trainer and press <kbd>Space</kbd> (or Battle in the Nearby panel). Battles are turn-based, 25 seconds per turn: choose one of four moves or open the <b>Bag</b> — Potions heal, X Attack / X Defend buff you for three turns, and using an item takes your turn. The full type chart applies (water beats fire, ghost ignores normal, and so on). Winner +25 points, loser +5. Forfeiting or disconnecting counts as a loss.</p>
-        </section>
-        <section>
-          <h4>5 · Level up &amp; evolve</h4>
-          <p>Your level is 1 + catches÷2 + wins÷2 and raises HP and damage. Starters evolve at <b>Lv 4</b> and <b>Lv 8</b>, Pikachu at Lv 6, Magikarp at Lv 5, Eevee at Lv 5 into a random Eeveelution.</p>
-        </section>
-        <section>
-          <h4>6 · PokéStore</h4>
-          <p>Potions, X items and balls are sold for <b><span data-cfg="ticker">$POKEMON</span></b> from your arena balance (sign in and deposit first). <b>100% of what you spend is burned</b> — the vault destroys it on-chain, so every purchase permanently shrinks the supply. The running burn total and transaction links are shown in the Season panel.</p>
-        </section>
-        <section>
-          <h4>7 · Accounts</h4>
-          <p><b>Continue with X</b> (your X account becomes your smart wallet — nothing to remember), <b>connect a wallet</b> (Phantom / Solflare signs a message — no transaction, no fee), or create a <b>smart wallet</b> with a username + passphrase. A smart wallet is an account that lives inside the arena with its own deposit address, for players without a browser wallet. Either way your progress resumes when you come back.</p>
-        </section>
-        <section>
-          <h4>8 · Staking <span data-cfg="ticker">$POKEMON</span></h4>
-          <p>Signed in with a balance? Type a stake next to a nearby trainer's Battle button, or accept theirs. Both stakes are locked when the battle starts; the winner takes the pot minus a <b><span data-econ="feePct">4</span>% fee</b>. Stakes run from <span data-econ="minStake">1,000</span> to <span data-econ="maxStake">5,000,000</span>. Forfeit or disconnect loses your stake. Only stake what you can afford to lose — battles have luck in them.</p>
-        </section>
-        <section>
-          <h4>9 · Season prize pool</h4>
-          <p><span data-econ="prizePoolShare">75</span>% of every fee goes into the pool. Every <span data-econ="seasonHours">24</span> hours it pays the season's top 3 by points — 50 / 30 / 20 % — and points reset. Catching, winning and staking all count.</p>
-        </section>
-        <section>
-          <h4>10 · Deposit &amp; withdraw</h4>
-          <p>Deposit: send <span data-cfg="ticker">$POKEMON</span> to your personal arena address (Account → Deposit) from any wallet or exchange, or let the site build the transfer for your wallet to sign. Credited within about a minute. Withdraw to any Solana address: minimum <span data-econ="minWithdraw">1,000</span>, up to <span data-econ="maxWithdrawPerDay">2,000,000</span> per day.</p>
-        </section>
-      </div>
-      <p class="muted small">Chat: <kbd>Enter</kbd> · Rematch: press <kbd>Space</kbd> near the same trainer · Run from an encounter with B / Run.</p>
+      <!-- filled at runtime from the on-page Docs section (#docs-grid) so there is one source of truth -->
+      <div class="guide-grid" id="guide-body"></div>
+      <p class="muted small">Chat: <kbd>Enter</kbd> · Rematch: press <kbd>Space</kbd> near the same trainer · Run from an encounter with B / Run · Full details and live burn stats in <a href="#docs" data-close>Docs</a>.</p>
     </div>
   </div>
 

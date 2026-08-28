@@ -812,7 +812,7 @@ async function runBurn() {
 }
 setInterval(() => { if (BigInt(ledger.pendingBurn || '0') > 0n) scheduleBurn(); }, 5 * 60000);
 const burnRow = b => ({ amount: toWhole(b.amount), signature: b.signature, at: b.at });
-function burnView() { const last = ledger.burns[ledger.burns.length - 1]; return { total: toWhole(ledger.burned || '0'), pending: toWhole(ledger.pendingBurn || '0'), count: ledger.burns.length, last: last ? burnRow(last) : null, recent: ledger.burns.slice(-3).reverse().map(burnRow) }; }
+function burnView() { const last = ledger.burns[ledger.burns.length - 1]; return { total: toWhole(ledger.burned || '0'), pending: toWhole(ledger.pendingBurn || '0'), count: ledger.burns.length, last: last ? burnRow(last) : null, recent: ledger.burns.slice(-5).reverse().map(burnRow), vault: vault ? vault.vaultPubkey : null }; }
 /** Public audit trail: every PokéStore burn with its on-chain signature, plus what is still queued. */
 function burnsView() {
   return {
